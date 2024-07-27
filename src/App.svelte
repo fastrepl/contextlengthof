@@ -132,9 +132,9 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     on:click={() => window.location.reload()}
   >
     <Typewriter mode="loopOnce" interval={70} cursor={true}>
-      <h2>Context length of "gpt-4"?</h2>
-      <h2>Output dimension of "gecko"?</h2>
-      <h2>Context length of "codestral"?</h2>
+      <h2>Search for "gpt-4o"</h2>
+      <h2>Search for "vertex_ai/claude-3-sonnet@20240229"</h2>
+      <h2>Search for "groq/llama3-8b-8192"</h2>
     </Typewriter>
   </div>
 
