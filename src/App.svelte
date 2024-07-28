@@ -21,11 +21,12 @@
   const RESOURCE_BACKUP_NAME = "model_prices_and_context_window_backup.json";
   const RESOURCE_PATH = `${RESOURCE_NAME}`;
   const RESOURCE_BACKUP_PATH = `litellm/${RESOURCE_BACKUP_NAME}`;
-  const DEFAULT_QUERY = "gpt-4";
+  let providers: string[] = [];
+  let selectedProvider: string = '';
 
   onMount(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    query = urlParams.get("q") || DEFAULT_QUERY;
+    query = urlParams.get("q");
 
     fetch(
       `https://api.github.com/repos/${REPO_FULL_NAME}/commits/${DEFAULT_BRANCH}`,
@@ -50,6 +51,8 @@
           ([k, v]: any) => ({ name: k, ...v }),
         );
 
+        providers = [...new Set(items.map((i) => i.litellm_provider))];
+
         index = new Fuse(items, {
           threshold: 0.3,
           keys: [
@@ -61,6 +64,10 @@
             "litellm_provider",
           ],
         });
+
+        // Initialize results with all items
+        results = items.map((item, refIndex) => ({ item, refIndex }));
+        loading = false;
       });
   });
 
@@ -115,12 +122,48 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   let results: ResultItem[] = [];
   let loading = true;
 
-  $: if (index) {
-    debounce(() => {
-      results = index.search(query) as ResultItem[];
-      loading = false;
-    })();
+  $: {
+    filterResults(query, selectedProvider);
   }
+
+  function filterResults(query: string, selectedProvider: string) {
+  if (index) {
+    let filteredResults: Item[];
+
+    // Get all items from the index
+    const allItems = index['_docs'] as Item[];
+
+    // First, filter by provider if one is selected
+    if (selectedProvider) {
+      filteredResults = allItems.filter(item => item.litellm_provider === selectedProvider);
+    } else {
+      filteredResults = allItems;
+    }
+
+    // Then, apply search query if it's not empty
+    if (query !== "" && query !== null) {
+      // Create a new Fuse instance with the filtered results
+      const filteredIndex = new Fuse(filteredResults, {
+        threshold: 0.3,
+        keys: [
+          {
+            name: "name",
+            weight: 1.5,
+          },
+          "mode",
+          "litellm_provider",
+        ],
+      });
+
+      const searchResults = filteredIndex.search(query);
+      filteredResults = searchResults.map(result => result.item);
+    }
+
+    // Map the filtered results to the ResultItem format
+    results = filteredResults.map((item, refIndex) => ({ item, refIndex }));
+    loading = false;
+  }
+}
 </script>
 
 <main class="container">
@@ -152,6 +195,9 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     <section style="height: 1.5em;" />
   {/if}
 
+
+
+
   <input
     bind:value={query}
     type="search"
@@ -159,6 +205,13 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     name="query"
     aria-label="query"
   />
+
+  <select bind:value={selectedProvider}>
+    <option value="">All Providers</option>
+    {#each providers as provider}
+      <option value={provider}>{provider}</option>
+    {/each}
+  </select>
 
   {#if loading}
     <span aria-busy="true" />
@@ -197,5 +250,10 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  select {
+    margin-top: 1rem;
+    width: 100%;
   }
 </style>
