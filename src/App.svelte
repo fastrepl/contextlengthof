@@ -23,6 +23,7 @@
   const RESOURCE_BACKUP_PATH = `litellm/${RESOURCE_BACKUP_NAME}`;
   let providers: string[] = [];
   let selectedProvider: string = '';
+  let maxTokens: number | null = null;
 
   onMount(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -126,22 +127,21 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   let loading = true;
 
   $: {
-    filterResults(query, selectedProvider);
+    filterResults(query, selectedProvider, maxTokens);
   }
 
-  function filterResults(query: string, selectedProvider: string) {
+  function filterResults(query: string, selectedProvider: string, maxTokens: number | null) {
   if (index) {
     let filteredResults: Item[];
 
     // Get all items from the index
     const allItems = index['_docs'] as Item[];
 
-    // First, filter by provider if one is selected
-    if (selectedProvider) {
-      filteredResults = allItems.filter(item => item.litellm_provider === selectedProvider);
-    } else {
-      filteredResults = allItems;
-    }
+    // Filter by provider and max_tokens
+    filteredResults = allItems.filter(item => 
+      (!selectedProvider || item.litellm_provider === selectedProvider) &&
+      (maxTokens === null || (item.max_tokens && item.max_tokens >= maxTokens))
+    );
 
     // Then, apply search query if it's not empty
     if (query !== "" && query !== null) {
@@ -166,6 +166,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     results = filteredResults.map((item, refIndex) => ({ item, refIndex }));
     loading = false;
   }
+
 }
 </script>
 
@@ -198,23 +199,43 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     <section style="height: 1.5em;" />
   {/if}
 
-
-
-
   <input
-    bind:value={query}
-    type="search"
-    autocomplete="off"
-    name="query"
-    aria-label="query"
-  />
+  id="query"
+  bind:value={query}
+  type="search"
+  autocomplete="off"
+  name="query"
+  aria-label="query"
+  placeholder="Search for models..."
+/>
 
-  <select bind:value={selectedProvider}>
-    <option value="">All Providers</option>
-    {#each providers as provider}
-      <option value={provider}>{provider}</option>
-    {/each}
-  </select>
+
+
+<div class="filter-container">
+
+  <div class="filter-row">
+    <div class="filter-item">
+      <label for="provider">Select provider:</label>
+      <select id="provider" bind:value={selectedProvider}>
+        <option value="">All Providers</option>
+        {#each providers as provider}
+          <option value={provider}>{provider}</option>
+        {/each}
+      </select>
+    </div>
+
+    <div class="filter-item">
+      <label for="maxTokens">max_tokens >=</label>
+      <input
+        id="maxTokens"
+        bind:value={maxTokens}
+        type="number"
+        min="0"
+        placeholder="Enter minimum max_tokens"
+      />
+    </div>
+  </div>
+</div>
 
   {#if loading}
     <span aria-busy="true" />
@@ -255,8 +276,50 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     white-space: nowrap;
   }
 
+
+  /* Remove the margin-top from the existing select style */
   select {
-    margin-top: 1rem;
     width: 100%;
   }
+
+  summary:hover {
+    font-weight: bold;
+  }
+
+  h2 {
+    margin-top: 2rem;
+  }
+  input, select {
+    margin-top: 0.5rem; /* Ensure margin top for all inputs and selects */
+  }
+  
+  .truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .filter-container {
+    margin-top: 1rem;
+  }
+
+  .filter-row {
+    display: flex;
+    justify-content: space-between; /* spaces filter items across the row */
+    align-items: center; /* aligns items vertically in the middle */
+  }
+
+  .filter-item {
+    display: flex;
+    flex-direction: column; /* stacks label and input vertically */
+    flex: 1;
+    padding: 0 10px;
+  }
+
+  /* Alignment and full width for inputs inside flex containers */
+  select, input[type="number"] {
+    width: 100%; /* makes input take full width of its parent */
+    margin-top: 0.4rem; /* Add a little top margin for visual spacing */
+  }
+
 </style>
