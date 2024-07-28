@@ -53,6 +53,9 @@
 
         providers = [...new Set(items.map((i) => i.litellm_provider))];
 
+        // sort providers alphabetically
+        providers.sort();
+
         index = new Fuse(items, {
           threshold: 0.3,
           keys: [
