@@ -23,7 +23,8 @@
   const RESOURCE_BACKUP_PATH = `litellm/${RESOURCE_BACKUP_NAME}`;
   let providers: string[] = [];
   let selectedProvider: string = '';
-  let maxTokens: number | null = null;
+  let maxInputTokens: number | null = null;
+  let maxOutputTokens: number | null = null;
 
   onMount(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -127,20 +128,21 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   let loading = true;
 
   $: {
-    filterResults(query, selectedProvider, maxTokens);
+    filterResults(query, selectedProvider, maxInputTokens, maxOutputTokens);
   }
 
-  function filterResults(query: string, selectedProvider: string, maxTokens: number | null) {
+  function filterResults(query: string, selectedProvider: string, maxInputTokens: number | null, maxOutputTokens: number | null) {
   if (index) {
     let filteredResults: Item[];
 
     // Get all items from the index
     const allItems = index['_docs'] as Item[];
 
-    // Filter by provider and max_tokens
+    // Filter by provider and max_input_tokens and max_output_tokens
     filteredResults = allItems.filter(item => 
       (!selectedProvider || item.litellm_provider === selectedProvider) &&
-      (maxTokens === null || (item.max_tokens && item.max_tokens >= maxTokens))
+      (maxInputTokens === null || (item.max_input_tokens && item.max_input_tokens >= maxInputTokens)) &&
+      (maxOutputTokens === null || (item.max_output_tokens && item.max_output_tokens >= maxOutputTokens))
     );
 
     // Then, apply search query if it's not empty
@@ -225,13 +227,23 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     </div>
 
     <div class="filter-item">
-      <label for="maxTokens">max_tokens >=</label>
+      <label for="maxInputTokens">max_input_tokens >=</label>
       <input
-        id="maxTokens"
-        bind:value={maxTokens}
+        id="maxInputTokens"
+        bind:value={maxInputTokens}
         type="number"
         min="0"
-        placeholder="Enter minimum max_tokens"
+        placeholder="Enter minimum max_input_tokens"
+      />
+    </div>
+    <div class="filter-item">
+      <label for="maxOutputTokens">max_output_tokens >=</label>
+      <input
+        id="maxOutputTokens"
+        bind:value={maxOutputTokens}
+        type="number"
+        min="0"
+        placeholder="Enter minimum max_output_tokens"
       />
     </div>
   </div>
