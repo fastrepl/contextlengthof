@@ -22,13 +22,13 @@
   const RESOURCE_PATH = `${RESOURCE_NAME}`;
   const RESOURCE_BACKUP_PATH = `litellm/${RESOURCE_BACKUP_NAME}`;
   let providers: string[] = [];
-  let selectedProvider: string = '';
+  let selectedProvider: string = "";
   let maxInputTokens: number | null = null;
   let maxOutputTokens: number | null = null;
 
   onMount(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    query = urlParams.get("q");
+    query = urlParams.get("q") ?? "";
 
     fetch(
       `https://api.github.com/repos/${REPO_FULL_NAME}/commits/${DEFAULT_BRANCH}`,
@@ -128,48 +128,59 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   let loading = true;
 
   $: {
-    filterResults(query, selectedProvider, maxInputTokens, maxOutputTokens);
-  }
-
-  function filterResults(query: string, selectedProvider: string, maxInputTokens: number | null, maxOutputTokens: number | null) {
-  if (index) {
-    let filteredResults: Item[];
-
-    // Get all items from the index
-    const allItems = index['_docs'] as Item[];
-
-    // Filter by provider and max_input_tokens and max_output_tokens
-    filteredResults = allItems.filter(item => 
-      (!selectedProvider || item.litellm_provider === selectedProvider) &&
-      (maxInputTokens === null || (item.max_input_tokens && item.max_input_tokens >= maxInputTokens)) &&
-      (maxOutputTokens === null || (item.max_output_tokens && item.max_output_tokens >= maxOutputTokens))
-    );
-
-    // Then, apply search query if it's not empty
-    if (query !== "" && query !== null) {
-      // Create a new Fuse instance with the filtered results
-      const filteredIndex = new Fuse(filteredResults, {
-        threshold: 0.3,
-        keys: [
-          {
-            name: "name",
-            weight: 1.5,
-          },
-          "mode",
-          "litellm_provider",
-        ],
-      });
-
-      const searchResults = filteredIndex.search(query);
-      filteredResults = searchResults.map(result => result.item);
+    if (index) {
+      filterResults(query, selectedProvider, maxInputTokens, maxOutputTokens);
     }
-
-    // Map the filtered results to the ResultItem format
-    results = filteredResults.map((item, refIndex) => ({ item, refIndex }));
-    loading = false;
   }
 
-}
+  function filterResults(
+    query: string,
+    selectedProvider: string,
+    maxInputTokens: number | null,
+    maxOutputTokens: number | null,
+  ) {
+    if (index) {
+      let filteredResults: Item[];
+
+      // Get all items from the index
+      const allItems = index["_docs"] as Item[];
+
+      // Filter by provider and max_input_tokens and max_output_tokens
+      filteredResults = allItems.filter(
+        (item) =>
+          (!selectedProvider || item.litellm_provider === selectedProvider) &&
+          (maxInputTokens === null ||
+            (item.max_input_tokens &&
+              item.max_input_tokens >= maxInputTokens)) &&
+          (maxOutputTokens === null ||
+            (item.max_output_tokens &&
+              item.max_output_tokens >= maxOutputTokens)),
+      );
+
+      // Then, apply search query if it's not empty
+      if (query) {
+        // Create a new Fuse instance with the filtered results
+        const filteredIndex = new Fuse(filteredResults, {
+          threshold: 0.3,
+          keys: [
+            {
+              name: "name",
+              weight: 1.5,
+            },
+            "mode",
+            "litellm_provider",
+          ],
+        });
+
+        const searchResults = filteredIndex.search(query);
+        filteredResults = searchResults.map((result) => result.item);
+      }
+
+      // Map the filtered results to the ResultItem format
+      results = filteredResults.map((item, refIndex) => ({ item, refIndex }));
+      loading = false;
+    }
+  }
 </script>
 
 <main class="container">
@@ -194,7 +205,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
       <a
         href="https://github.com/BerriAI/litellm/blob/main/model_prices_and_context_window.json"
       >
-      🚅 Litellm
+        🚅 Litellm
       </a>.
     </section>
   {:else}
@@ -202,52 +213,49 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   {/if}
 
   <input
-  id="query"
-  bind:value={query}
-  type="search"
-  autocomplete="off"
-  name="query"
-  aria-label="query"
-  placeholder="Search for models..."
-/>
+    id="query"
+    bind:value={query}
+    type="search"
+    autocomplete="off"
+    name="query"
+    aria-label="query"
+    placeholder="Search for models..."
+  />
 
+  <div class="filter-container">
+    <div class="filter-row">
+      <div class="filter-item">
+        <label for="provider">Select provider:</label>
+        <select id="provider" bind:value={selectedProvider}>
+          <option value="">All Providers</option>
+          {#each providers as provider}
+            <option value={provider}>{provider}</option>
+          {/each}
+        </select>
+      </div>
 
-
-<div class="filter-container">
-
-  <div class="filter-row">
-    <div class="filter-item">
-      <label for="provider">Select provider:</label>
-      <select id="provider" bind:value={selectedProvider}>
-        <option value="">All Providers</option>
-        {#each providers as provider}
-          <option value={provider}>{provider}</option>
-        {/each}
-      </select>
-    </div>
-
-    <div class="filter-item">
-      <label for="maxInputTokens">max_input_tokens >=</label>
-      <input
-        id="maxInputTokens"
-        bind:value={maxInputTokens}
-        type="number"
-        min="0"
-        placeholder="Enter minimum max_input_tokens"
-      />
-    </div>
-    <div class="filter-item">
-      <label for="maxOutputTokens">max_output_tokens >=</label>
-      <input
-        id="maxOutputTokens"
-        bind:value={maxOutputTokens}
-        type="number"
-        min="0"
-        placeholder="Enter minimum max_output_tokens"
-      />
+      <div class="filter-item">
+        <label for="maxInputTokens">max_input_tokens >=</label>
+        <input
+          id="maxInputTokens"
+          bind:value={maxInputTokens}
+          type="number"
+          min="0"
+          placeholder="Enter minimum max_input_tokens"
+        />
+      </div>
+      <div class="filter-item">
+        <label for="maxOutputTokens">max_output_tokens >=</label>
+        <input
+          id="maxOutputTokens"
+          bind:value={maxOutputTokens}
+          type="number"
+          min="0"
+          placeholder="Enter minimum max_output_tokens"
+        />
+      </div>
     </div>
   </div>
-</div>
 
   {#if loading}
     <span aria-busy="true" />
@@ -288,7 +296,6 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     white-space: nowrap;
   }
 
-
   /* Remove the margin-top from the existing select style */
   select {
     width: 100%;
@@ -301,10 +308,11 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   h2 {
     margin-top: 2rem;
   }
-  input, select {
+  input,
+  select {
     margin-top: 0.5rem; /* Ensure margin top for all inputs and selects */
   }
-  
+
   .truncate {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -329,9 +337,9 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   }
 
   /* Alignment and full width for inputs inside flex containers */
-  select, input[type="number"] {
+  select,
+  input[type="number"] {
     width: 100%; /* makes input take full width of its parent */
     margin-top: 0.4rem; /* Add a little top margin for visual spacing */
   }
-
 </style>
