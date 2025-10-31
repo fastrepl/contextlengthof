@@ -200,19 +200,6 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   }
 </script>
 
-<header class="header">
-  <div class="header-content">
-    <div class="logo-section-header">
-      <span class="logo-emoji">🚅</span>
-      <span class="logo-text-header">LiteLLM</span>
-    </div>
-    <nav class="nav-links">
-      <a href="https://docs.litellm.ai/docs/" target="_blank" rel="noopener noreferrer" class="nav-link">Docs</a>
-      <a href="https://github.com/BerriAI/litellm" target="_blank" rel="noopener noreferrer" class="nav-link">GitHub</a>
-    </nav>
-  </div>
-</header>
-
 <main class="container">
   <!-- Hero Section -->
   <div class="hero">
@@ -297,9 +284,9 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     <span aria-busy="true" />
   {:else}
     {#if query != "" && results.length < 12}
-      <section>
+      <div class="add-model-section">
         <a href={getIssueUrlForAdd(query)}>Add new model?</a>
-      </section>
+      </div>
     {/if}
 
     <div class="table-container">
@@ -383,63 +370,6 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     --litellm-primary: #6366f1;
     --litellm-dark: #0f0f23;
     --litellm-purple: #8b5cf6;
-  }
-
-  /* Header */
-  .header {
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    background-color: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    border-bottom: 1px solid var(--muted-border-color);
-  }
-
-  .header-content {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 1rem 2rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .logo-section-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-  }
-
-  .logo-emoji {
-    font-size: 1.5rem;
-    line-height: 1;
-  }
-
-  .logo-text-header {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: var(--contrast);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
-  }
-
-  .nav-links {
-    display: flex;
-    align-items: center;
-    gap: 2rem;
-  }
-
-  .nav-link {
-    color: var(--contrast);
-    text-decoration: none;
-    font-size: 0.9375rem;
-    font-weight: 500;
-    transition: color 0.2s ease;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
-  }
-
-  .nav-link:hover {
-    color: var(--litellm-primary);
   }
 
   /* Hero Section */
@@ -613,6 +543,23 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
 
   .filter-input::placeholder {
     color: var(--muted-color);
+  }
+
+  /* Add Model Section */
+  .add-model-section {
+    max-width: 1400px;
+    margin: 0 auto 1rem;
+    padding: 0 2rem;
+  }
+
+  .add-model-section a {
+    color: #2563eb;
+    text-decoration: none;
+    font-size: 0.95rem;
+  }
+
+  .add-model-section a:hover {
+    text-decoration: underline;
   }
 
   /* Table styles */
@@ -800,22 +747,6 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
 
   /* Responsive Design */
   @media (max-width: 768px) {
-    .header-content {
-      padding: 1rem;
-    }
-
-    .logo-text-header {
-      font-size: 1.125rem;
-    }
-
-    .nav-links {
-      gap: 1rem;
-    }
-
-    .nav-link {
-      font-size: 0.875rem;
-    }
-
     .hero {
       padding: 2rem 1rem;
     }
