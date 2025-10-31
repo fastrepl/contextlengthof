@@ -372,12 +372,19 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     --litellm-purple: #8b5cf6;
   }
 
+  .container {
+    background-color: #ffffff;
+    color: #1a1a1a;
+  }
+
   /* Hero Section */
   .hero {
     text-align: center;
     padding: 5rem 2rem 4rem;
     max-width: 900px;
     margin: 0 auto;
+    background-color: #ffffff;
+    color: #1a1a1a;
   }
 
   .hero-title {
@@ -385,7 +392,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     font-weight: 700;
     line-height: 1.1;
     margin: 0 0 1.25rem 0;
-    color: var(--contrast);
+    color: #1a1a1a;
     letter-spacing: -0.03em;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
   }
@@ -393,7 +400,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   .hero-subtitle {
     font-size: 1.25rem;
     line-height: 1.5;
-    color: var(--muted-color);
+    color: #6b7280;
     margin: 0 0 2rem 0;
     max-width: 700px;
     margin-left: auto;
@@ -573,14 +580,14 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   table {
     width: 100%;
     border-collapse: collapse;
-    background: var(--card-background-color);
+    background: #ffffff;
     border-radius: 12px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     border: 1px solid var(--muted-border-color);
   }
 
   thead {
-    background-color: var(--card-background-color);
+    background-color: #ffffff;
     border-bottom: 1px solid var(--muted-border-color);
   }
 
@@ -594,14 +601,19 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     color: var(--muted-color);
   }
 
+  tbody {
+    background-color: #ffffff;
+  }
+
   tbody tr.model-row {
     border-bottom: 1px solid var(--muted-border-color);
     transition: background-color 0.15s ease;
     cursor: pointer;
+    background-color: #ffffff;
   }
 
   tbody tr.model-row:hover {
-    background-color: var(--table-row-stripped-background-color);
+    background-color: #f9fafb;
   }
 
   tbody tr.model-row.expanded {

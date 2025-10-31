@@ -52,14 +52,34 @@
 </div>
 
 <style>
+  /* Force light mode globally */
+  :global(html) {
+    color-scheme: light only;
+    background-color: #ffffff;
+  }
+
+  :global(body) {
+    background-color: #ffffff;
+    color: #1a1a1a;
+  }
+
   :root {
     --litellm-primary: #6366f1;
     --litellm-dark: #4f46e5;
     --litellm-purple: #8b5cf6;
+    
+    /* Force light mode colors */
+    --background-color: #ffffff;
+    --contrast: #1a1a1a;
+    --muted-color: #6b7280;
+    --card-background-color: #ffffff;
+    --muted-border-color: #e5e7eb;
+    --table-row-stripped-background-color: #f9fafb;
   }
 
   .app-container {
     min-height: 100vh;
+    background-color: #ffffff;
   }
 
   /* Header */

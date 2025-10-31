@@ -350,6 +350,8 @@
     padding: 4rem 2rem 3rem;
     max-width: 1400px;
     margin: 0 auto;
+    background-color: #ffffff;
+    color: #1a1a1a;
   }
 
   .hero-content {
@@ -359,7 +361,7 @@
   .hero-title {
     font-size: 3rem;
     font-weight: 700;
-    color: var(--contrast);
+    color: #1a1a1a;
     margin-bottom: 1rem;
     letter-spacing: -0.02em;
     line-height: 1.1;
@@ -373,11 +375,12 @@
 
   .docs-link:hover {
     text-decoration: underline;
+    color: #1d4ed8;
   }
 
   .hero-subtitle {
     font-size: 1.25rem;
-    color: var(--muted-color);
+    color: #6b7280;
     line-height: 1.6;
   }
 
@@ -546,7 +549,7 @@
   table {
     width: 100%;
     border-collapse: collapse;
-    background: var(--card-background-color);
+    background: #ffffff;
     border-radius: 12px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     border: 1px solid var(--muted-border-color);
@@ -592,13 +595,18 @@
     text-align: center;
   }
 
+  tbody {
+    background-color: #ffffff;
+  }
+
   tbody tr {
     border-bottom: 1px solid var(--muted-border-color);
     transition: background-color 0.15s ease;
+    background-color: #ffffff;
   }
 
   tbody tr:hover {
-    background-color: var(--table-row-stripped-background-color);
+    background-color: #f9fafb;
   }
 
   tbody tr:last-child {
@@ -609,11 +617,14 @@
     padding: 0.875rem 1.5rem;
     vertical-align: middle;
     font-size: 0.9375rem;
+    color: #1a1a1a;
+    background-color: #ffffff;
   }
 
   .provider-cell {
     font-weight: 500;
     min-width: 250px;
+    color: #1a1a1a;
   }
 
   .provider-info {
