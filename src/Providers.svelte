@@ -17,7 +17,10 @@
   let filteredEndpoints: string[] = [];
   let searchQuery = "";
   let viewMode: "provider" | "endpoint" = "provider";
+  let selectedFilter = "";
   let endpointColumns: string[] = [];
+  let viewModeOpen = false;
+  let filterOpen = false;
 
   const PROVIDERS_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/provider_endpoints_support.json";
   const DOCS_URL = "https://docs.litellm.ai/docs/providers";
@@ -43,30 +46,59 @@
       console.error("Failed to load providers:", error);
       loading = false;
     }
+
+    // Close dropdowns when clicking outside
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.custom-dropdown')) {
+        viewModeOpen = false;
+        filterOpen = false;
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
   });
 
+  // Reset selected filter when view mode changes
+  $: if (viewMode) {
+    selectedFilter = "";
+  }
+
   $: {
-    // Reset filters when view mode changes
-    if (searchQuery.trim() === "") {
-      filteredProviders = providers;
-      filteredEndpoints = endpointColumns;
-    } else {
+    // Apply filters
+    let tempProviders = providers;
+    let tempEndpoints = endpointColumns;
+
+    // Apply search query
+    if (searchQuery.trim() !== "") {
       const query = searchQuery.toLowerCase();
       if (viewMode === "provider") {
-        filteredProviders = providers.filter((p) =>
+        tempProviders = tempProviders.filter((p) =>
           p.provider.toLowerCase().includes(query) ||
           p.display_name.toLowerCase().includes(query)
         );
-        filteredEndpoints = endpointColumns;
       } else {
-        // In endpoint view, filter endpoints
-        filteredProviders = providers;
-        filteredEndpoints = endpointColumns.filter((endpoint) =>
+        tempEndpoints = tempEndpoints.filter((endpoint) =>
           endpoint.toLowerCase().includes(query) ||
           formatEndpointName(endpoint).toLowerCase().includes(query)
         );
       }
     }
+
+    // Apply dropdown filter
+    if (selectedFilter) {
+      if (viewMode === "provider") {
+        tempProviders = tempProviders.filter((p) => p.provider === selectedFilter);
+      } else {
+        tempEndpoints = tempEndpoints.filter((e) => e === selectedFilter);
+      }
+    }
+
+    filteredProviders = tempProviders;
+    filteredEndpoints = tempEndpoints;
   }
 
   // Initialize filtered endpoints when endpoint columns are ready
@@ -109,26 +141,9 @@
     </div>
   </div>
 
-  <!-- Search and View Mode -->
+  <!-- Search and Filters -->
   <div class="search-section">
-    <div class="search-bar-container">
-      <div class="view-toggles">
-        <button 
-          class="view-toggle" 
-          class:active={viewMode === "provider"}
-          on:click={() => viewMode = "provider"}
-        >
-          View by Provider
-        </button>
-        <button 
-          class="view-toggle" 
-          class:active={viewMode === "endpoint"}
-          on:click={() => viewMode = "endpoint"}
-        >
-          View by Endpoint
-        </button>
-      </div>
-
+    <div class="filters-row">
       <div class="search-input-wrapper">
         <svg class="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
           <circle cx="8.5" cy="8.5" r="5.75" stroke="currentColor" stroke-width="1.5"/>
@@ -141,6 +156,56 @@
           placeholder={viewMode === "provider" ? "Search providers..." : "Search endpoints..."}
           class="search-input"
         />
+      </div>
+
+      <!-- View Mode Dropdown -->
+      <div class="custom-dropdown">
+        <button class="dropdown-trigger" on:click|stopPropagation={() => viewModeOpen = !viewModeOpen} type="button">
+          <span>{viewMode === "provider" ? "View by Provider" : "View by Endpoint"}</span>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        {#if viewModeOpen}
+          <div class="dropdown-menu" transition:fly={{ y: -10, duration: 150 }}>
+            <button class="dropdown-option" class:selected={viewMode === "provider"} on:click={() => { viewMode = "provider"; viewModeOpen = false; }} type="button">
+              View by Provider
+            </button>
+            <button class="dropdown-option" class:selected={viewMode === "endpoint"} on:click={() => { viewMode = "endpoint"; viewModeOpen = false; }} type="button">
+              View by Endpoint
+            </button>
+          </div>
+        {/if}
+      </div>
+
+      <!-- Filter Dropdown -->
+      <div class="custom-dropdown">
+        <button class="dropdown-trigger" on:click|stopPropagation={() => filterOpen = !filterOpen} type="button">
+          <span>{selectedFilter ? (viewMode === "provider" ? providers.find(p => p.provider === selectedFilter)?.display_name.replace(/\s*\(.*?\)\s*$/, '') : formatEndpointName(selectedFilter)) : `All ${viewMode === "provider" ? "Providers" : "Endpoints"}`}</span>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        {#if filterOpen}
+          <div class="dropdown-menu scrollable" transition:fly={{ y: -10, duration: 150 }}>
+            <button class="dropdown-option" class:selected={!selectedFilter} on:click={() => { selectedFilter = ""; filterOpen = false; }} type="button">
+              All {viewMode === "provider" ? "Providers" : "Endpoints"}
+            </button>
+            {#if viewMode === "provider"}
+              {#each providers as { provider, display_name }}
+                <button class="dropdown-option" class:selected={selectedFilter === provider} on:click={() => { selectedFilter = provider; filterOpen = false; }} type="button">
+                  {display_name.replace(/\s*\(.*?\)\s*$/, '')}
+                </button>
+              {/each}
+            {:else}
+              {#each endpointColumns as endpoint}
+                <button class="dropdown-option" class:selected={selectedFilter === endpoint} on:click={() => { selectedFilter = endpoint; filterOpen = false; }} type="button">
+                  {formatEndpointName(endpoint)}
+                </button>
+              {/each}
+            {/if}
+          </div>
+        {/if}
       </div>
     </div>
   </div>
@@ -323,47 +388,107 @@
     padding: 0 2rem;
   }
 
-  .search-bar-container {
-    display: flex;
+  .filters-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
     gap: 1rem;
-    margin-bottom: 1rem;
-    align-items: center;
+    width: 100%;
   }
 
-  .view-toggles {
+  .custom-dropdown {
+    position: relative;
+    min-width: 220px;
+  }
+
+  .dropdown-trigger {
+    width: 100%;
     display: flex;
-    gap: 0.5rem;
-    background: #f3f4f6;
-    padding: 0.25rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    font-size: 1rem;
+    border: 1px solid #d1d5db;
     border-radius: 8px;
-  }
-
-  .view-toggle {
-    padding: 0.625rem 1.25rem;
-    border: none;
-    background: transparent;
-    color: var(--muted-color);
-    font-weight: 500;
-    font-size: 0.9375rem;
-    border-radius: 6px;
+    background-color: #ffffff;
     cursor: pointer;
     transition: all 0.2s ease;
+    font-family: inherit;
+    color: var(--contrast);
+    height: 48px;
+    box-sizing: border-box;
+  }
+
+  .dropdown-trigger:hover {
+    border-color: #9ca3af;
+  }
+
+  .dropdown-trigger:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  }
+
+  .dropdown-trigger span {
+    flex: 1;
+    text-align: left;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
   }
 
-  .view-toggle:hover {
-    color: var(--contrast);
+  .dropdown-trigger svg {
+    flex-shrink: 0;
+    color: var(--muted-color);
   }
 
-  .view-toggle.active {
-    background: #ffffff;
+  .dropdown-menu {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    left: 0;
+    right: 0;
+    background-color: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    z-index: 9999;
+    overflow: hidden;
+  }
+
+  .dropdown-menu.scrollable {
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .dropdown-option {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9375rem;
     color: var(--contrast);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: background-color 0.15s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .dropdown-option:hover {
+    background-color: #f3f4f6;
+  }
+
+  .dropdown-option.selected {
+    background-color: #eff6ff;
+    color: #2563eb;
+    font-weight: 500;
   }
 
   .search-input-wrapper {
     position: relative;
-    flex: 1;
+    width: 100%;
   }
 
   .search-icon {
