@@ -583,12 +583,12 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     background: #ffffff;
     border-radius: 12px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    border: 1px solid var(--muted-border-color);
+    border: 1px solid #e5e7eb;
   }
 
   thead {
     background-color: #ffffff;
-    border-bottom: 1px solid var(--muted-border-color);
+    border-bottom: 1px solid #e5e7eb;
   }
 
   th {
@@ -598,7 +598,8 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--muted-color);
+    color: #6b7280;
+    background-color: #ffffff;
   }
 
   tbody {
@@ -606,7 +607,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   }
 
   tbody tr.model-row {
-    border-bottom: 1px solid var(--muted-border-color);
+    border-bottom: 1px solid #e5e7eb;
     transition: background-color 0.15s ease;
     cursor: pointer;
     background-color: #ffffff;
@@ -625,7 +626,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   }
 
   tbody tr.expanded-content {
-    border-bottom: 1px solid var(--muted-border-color);
+    border-bottom: 1px solid #e5e7eb;
   }
 
   tbody tr.expanded-content td {
@@ -636,11 +637,14 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     padding: 0.875rem 1.5rem;
     vertical-align: middle;
     font-size: 0.9375rem;
+    background-color: #ffffff;
+    color: #1a1a1a;
   }
 
   .model-name {
     font-weight: 500;
     min-width: 300px;
+    color: #1a1a1a;
   }
 
   .model-info {
@@ -739,7 +743,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
 
   .code-block {
     background-color: #f8f9fa;
-    border-top: 1px solid var(--muted-border-color);
+    border-top: 1px solid #e5e7eb;
     margin: 0;
     padding: 1.5rem;
     overflow-x: auto;

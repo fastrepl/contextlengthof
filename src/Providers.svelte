@@ -552,7 +552,7 @@
     background: #ffffff;
     border-radius: 12px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    border: 1px solid var(--muted-border-color);
+    border: 1px solid #e5e7eb;
   }
 
   thead {
@@ -570,7 +570,7 @@
     left: 0;
     right: 0;
     height: 1px;
-    background-color: var(--muted-border-color);
+    background-color: #e5e7eb;
   }
 
   th {
@@ -579,9 +579,9 @@
     font-weight: 600;
     font-size: 0.75rem;
     letter-spacing: 0.05em;
-    color: var(--muted-color);
+    color: #6b7280;
     background-color: #ffffff;
-    border-bottom: 1px solid var(--muted-border-color);
+    border-bottom: 1px solid #e5e7eb;
   }
 
   th:first-child {
@@ -600,7 +600,7 @@
   }
 
   tbody tr {
-    border-bottom: 1px solid var(--muted-border-color);
+    border-bottom: 1px solid #e5e7eb;
     transition: background-color 0.15s ease;
     background-color: #ffffff;
   }
