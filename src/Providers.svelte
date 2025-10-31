@@ -14,6 +14,7 @@
   let loading = true;
   let providers: ProviderEndpoint[] = [];
   let filteredProviders: ProviderEndpoint[] = [];
+  let filteredEndpoints: string[] = [];
   let searchQuery = "";
   let viewMode: "provider" | "endpoint" = "provider";
   let endpointColumns: string[] = [];
@@ -45,14 +46,32 @@
   });
 
   $: {
+    // Reset filters when view mode changes
     if (searchQuery.trim() === "") {
       filteredProviders = providers;
+      filteredEndpoints = endpointColumns;
     } else {
       const query = searchQuery.toLowerCase();
-      filteredProviders = providers.filter((p) =>
-        p.provider.toLowerCase().includes(query)
-      );
+      if (viewMode === "provider") {
+        filteredProviders = providers.filter((p) =>
+          p.provider.toLowerCase().includes(query) ||
+          p.display_name.toLowerCase().includes(query)
+        );
+        filteredEndpoints = endpointColumns;
+      } else {
+        // In endpoint view, filter endpoints
+        filteredProviders = providers;
+        filteredEndpoints = endpointColumns.filter((endpoint) =>
+          endpoint.toLowerCase().includes(query) ||
+          formatEndpointName(endpoint).toLowerCase().includes(query)
+        );
+      }
     }
+  }
+
+  // Initialize filtered endpoints when endpoint columns are ready
+  $: if (endpointColumns.length > 0 && filteredEndpoints.length === 0) {
+    filteredEndpoints = endpointColumns;
   }
 
   function formatEndpointName(endpoint: string): string {
@@ -90,38 +109,39 @@
     </div>
   </div>
 
-  <!-- View Mode Toggles -->
-  <div class="view-section">
-    <div class="view-toggles">
-      <button 
-        class="view-toggle" 
-        class:active={viewMode === "provider"}
-        on:click={() => viewMode = "provider"}
-      >
-        View by Provider
-      </button>
-      <button 
-        class="view-toggle" 
-        class:active={viewMode === "endpoint"}
-        on:click={() => viewMode = "endpoint"}
-      >
-        View by Endpoint
-      </button>
-    </div>
+  <!-- Search and View Mode -->
+  <div class="search-section">
+    <div class="search-bar-container">
+      <div class="view-toggles">
+        <button 
+          class="view-toggle" 
+          class:active={viewMode === "provider"}
+          on:click={() => viewMode = "provider"}
+        >
+          View by Provider
+        </button>
+        <button 
+          class="view-toggle" 
+          class:active={viewMode === "endpoint"}
+          on:click={() => viewMode = "endpoint"}
+        >
+          View by Endpoint
+        </button>
+      </div>
 
-    <!-- Search -->
-    <div class="search-input-wrapper">
-      <svg class="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <circle cx="8.5" cy="8.5" r="5.75" stroke="currentColor" stroke-width="1.5"/>
-        <path d="M12.5 12.5L16.5 16.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-      </svg>
-      <input
-        bind:value={searchQuery}
-        type="text"
-        autocomplete="off"
-        placeholder="Search providers..."
-        class="search-input"
-      />
+      <div class="search-input-wrapper">
+        <svg class="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <circle cx="8.5" cy="8.5" r="5.75" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M12.5 12.5L16.5 16.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <input
+          bind:value={searchQuery}
+          type="text"
+          autocomplete="off"
+          placeholder={viewMode === "provider" ? "Search providers..." : "Search endpoints..."}
+          class="search-input"
+        />
+      </div>
     </div>
   </div>
 
@@ -132,59 +152,117 @@
   {:else}
     <div class="table-container">
       <table>
-        <thead>
-          <tr>
-            <th>Provider</th>
-            {#each endpointColumns as endpoint}
-              <th>{formatEndpointName(endpoint)}</th>
-            {/each}
-          </tr>
-        </thead>
-        <tbody>
-          {#each filteredProviders as { provider, display_name, url, endpoints } (provider)}
+        {#if viewMode === "provider"}
+          <!-- View by Provider -->
+          <thead>
             <tr>
-              <td class="provider-cell">
-                <div class="provider-info">
-                  <div class="provider-avatar">
-                    {#if getProviderLogo(provider)}
-                      <img 
-                        src={getProviderLogo(provider)} 
-                        alt={provider}
-                        class="provider-logo-img"
-                        on:error={(e) => {
-                          e.currentTarget.style.display = 'none';
-                          e.currentTarget.nextElementSibling.style.display = 'flex';
-                        }}
-                      />
-                      <div class="provider-initial" style="display: none;">
-                        {getProviderInitial(provider)}
-                      </div>
-                    {:else}
-                      <div class="provider-initial">
-                        {getProviderInitial(provider)}
-                      </div>
-                    {/if}
-                  </div>
-                  <div class="provider-details">
-                    <a href={url} target="_blank" rel="noopener noreferrer" class="provider-link">
-                      {display_name.replace(/\s*\(.*?\)\s*$/, '')}
-                    </a>
-                    <span class="provider-key">({provider})</span>
-                  </div>
-                </div>
-              </td>
+              <th>Provider</th>
               {#each endpointColumns as endpoint}
-                <td class="endpoint-cell">
-                  {#if endpoints[endpoint] === true}
-                    <div class="status-icon supported">✓</div>
-                  {:else}
-                    <div class="status-icon unsupported">○</div>
-                  {/if}
-                </td>
+                <th>{formatEndpointName(endpoint)}</th>
               {/each}
             </tr>
-          {/each}
-        </tbody>
+          </thead>
+          <tbody>
+            {#each filteredProviders as { provider, display_name, url, endpoints } (provider)}
+              <tr>
+                <td class="provider-cell">
+                  <div class="provider-info">
+                    <div class="provider-avatar">
+                      {#if getProviderLogo(provider)}
+                        <img 
+                          src={getProviderLogo(provider)} 
+                          alt={provider}
+                          class="provider-logo-img"
+                          on:error={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling.style.display = 'flex';
+                          }}
+                        />
+                        <div class="provider-initial" style="display: none;">
+                          {getProviderInitial(provider)}
+                        </div>
+                      {:else}
+                        <div class="provider-initial">
+                          {getProviderInitial(provider)}
+                        </div>
+                      {/if}
+                    </div>
+                    <div class="provider-details">
+                      <a href={url} target="_blank" rel="noopener noreferrer" class="provider-link">
+                        {display_name.replace(/\s*\(.*?\)\s*$/, '')}
+                      </a>
+                      <span class="provider-key">({provider})</span>
+                    </div>
+                  </div>
+                </td>
+                {#each endpointColumns as endpoint}
+                  <td class="endpoint-cell">
+                    {#if endpoints[endpoint] === true}
+                      <div class="status-icon supported">✓</div>
+                    {:else}
+                      <div class="status-icon unsupported">○</div>
+                    {/if}
+                  </td>
+                {/each}
+              </tr>
+            {/each}
+          </tbody>
+        {:else}
+          <!-- View by Endpoint -->
+          <thead>
+            <tr>
+              <th>Endpoint</th>
+              {#each filteredProviders as { provider, display_name } (provider)}
+                <th>
+                  <div class="provider-header">
+                    <div class="provider-avatar-small">
+                      {#if getProviderLogo(provider)}
+                        <img 
+                          src={getProviderLogo(provider)} 
+                          alt={provider}
+                          class="provider-logo-img-small"
+                          on:error={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling.style.display = 'flex';
+                          }}
+                        />
+                        <div class="provider-initial-small" style="display: none;">
+                          {getProviderInitial(provider)}
+                        </div>
+                      {:else}
+                        <div class="provider-initial-small">
+                          {getProviderInitial(provider)}
+                        </div>
+                      {/if}
+                    </div>
+                    <div class="provider-name-small">
+                      {display_name.replace(/\s*\(.*?\)\s*$/, '')}
+                    </div>
+                    <div class="provider-key-small">({provider})</div>
+                  </div>
+                </th>
+              {/each}
+            </tr>
+          </thead>
+          <tbody>
+            {#each filteredEndpoints as endpoint}
+              <tr>
+                <td class="endpoint-name-cell">
+                  <span class="endpoint-name">{formatEndpointName(endpoint)}</span>
+                </td>
+                {#each filteredProviders as { endpoints } }
+                  <td class="endpoint-cell">
+                    {#if endpoints[endpoint] === true}
+                      <div class="status-icon supported">✓</div>
+                    {:else}
+                      <div class="status-icon unsupported">○</div>
+                    {/if}
+                  </td>
+                {/each}
+              </tr>
+            {/each}
+          </tbody>
+        {/if}
       </table>
     </div>
   {/if}
@@ -238,13 +316,17 @@
     line-height: 1.6;
   }
 
-  /* View Section */
-  .view-section {
+  /* Search Section */
+  .search-section {
     max-width: 1400px;
-    margin: 0 auto 2rem;
+    margin: 4rem auto 2rem;
     padding: 0 2rem;
+  }
+
+  .search-bar-container {
     display: flex;
     gap: 1rem;
+    margin-bottom: 1rem;
     align-items: center;
   }
 
@@ -282,7 +364,6 @@
   .search-input-wrapper {
     position: relative;
     flex: 1;
-    max-width: 400px;
   }
 
   .search-icon {
@@ -347,17 +428,32 @@
   }
 
   thead {
-    background-color: var(--card-background-color);
-    border-bottom: 1px solid var(--muted-border-color);
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background-color: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  }
+
+  thead::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background-color: var(--muted-border-color);
   }
 
   th {
-    padding: 0.75rem 1.5rem;
+    padding: 1rem 1.5rem;
     text-align: left;
-    font-weight: 500;
+    font-weight: 600;
     font-size: 0.75rem;
     letter-spacing: 0.05em;
     color: var(--muted-color);
+    background-color: #ffffff;
+    border-bottom: 1px solid var(--muted-border-color);
   }
 
   th:first-child {
@@ -486,6 +582,74 @@
     color: #d1d5db;
     border: 2px solid #d1d5db;
     font-size: 20px;
+  }
+
+  /* Endpoint View Styles */
+  .provider-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.375rem;
+    min-width: 120px;
+  }
+
+  .provider-avatar-small {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+    position: relative;
+    padding: 3px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+
+  .provider-logo-img-small {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .provider-initial-small {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #1a1a1a;
+    color: white;
+    font-weight: 600;
+    font-size: 0.625rem;
+    border-radius: 50%;
+    margin: -3px;
+  }
+
+  .provider-name-small {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--contrast);
+    text-align: center;
+    line-height: 1.2;
+  }
+
+  .provider-key-small {
+    font-size: 0.625rem;
+    color: var(--muted-color);
+    font-family: monospace;
+  }
+
+  .endpoint-name-cell {
+    font-weight: 500;
+    min-width: 200px;
+  }
+
+  .endpoint-name {
+    font-family: monospace;
+    font-size: 0.875rem;
   }
 
   /* Responsive Design */
