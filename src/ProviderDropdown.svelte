@@ -127,6 +127,8 @@
     transition: all 0.2s ease;
     font-family: inherit;
     color: var(--contrast);
+    height: 48px;
+    box-sizing: border-box;
   }
 
   .dropdown-trigger:hover {

@@ -134,6 +134,12 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     }
   }
 
+  function copyToClipboard(text: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      // You could add a toast notification here if desired
+    });
+  }
+
   function filterResults(
     query: string,
     selectedProvider: string,
@@ -231,16 +237,22 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   <!-- Search and Filters -->
   <div class="search-section">
     <div class="search-bar-container">
-      <input
-        id="query"
-        bind:value={query}
-        type="search"
-        autocomplete="off"
-        name="query"
-        aria-label="Search models"
-        placeholder="Search model..."
-        class="search-input"
-      />
+      <div class="search-input-wrapper">
+        <svg class="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <circle cx="8.5" cy="8.5" r="5.75" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M12.5 12.5L16.5 16.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <input
+          id="query"
+          bind:value={query}
+          type="search"
+          autocomplete="off"
+          name="query"
+          aria-label="Search models"
+          placeholder="Search model..."
+          class="search-input"
+        />
+      </div>
       
       <ProviderDropdown bind:selectedProvider {providers} />
     </div>
@@ -318,6 +330,17 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
                     {/if}
                   </div>
                   <span class="model-title">{name}</span>
+                  <button 
+                    class="copy-button" 
+                    on:click={() => copyToClipboard(name)}
+                    title="Copy model name"
+                    type="button"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <rect x="4" y="4" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
+                      <path d="M2 6V2.5C2 1.67157 2.67157 1 3.5 1H7" stroke="currentColor" stroke-width="1.2"/>
+                    </svg>
+                  </button>
                 </div>
               </td>
               <td class="context-cell">{max_input_tokens && max_input_tokens > 0 ? (max_input_tokens >= 1000000 ? (max_input_tokens / 1000000).toFixed(0) + 'M' : (max_input_tokens / 1000).toFixed(0) + 'K') : '—'}</td>
@@ -482,16 +505,34 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     display: flex;
     gap: 1rem;
     margin-bottom: 1rem;
+    align-items: center;
+  }
+
+  .search-input-wrapper {
+    position: relative;
+    flex: 1;
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted-color);
+    pointer-events: none;
+    z-index: 1;
   }
 
   .search-input {
-    flex: 1;
-    padding: 0.875rem 1rem;
+    width: 100%;
+    padding: 0.875rem 1rem 0.875rem 3rem;
     font-size: 1rem;
     border: 1px solid var(--muted-border-color);
     border-radius: 8px;
-    background-color: var(--card-background-color);
+    background-color: #ffffff;
     transition: all 0.2s ease;
+    height: 48px;
+    box-sizing: border-box;
   }
 
   .search-input:focus {
@@ -566,7 +607,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   }
 
   th {
-    padding: 1rem 1.5rem;
+    padding: 0.75rem 1.5rem;
     text-align: left;
     font-weight: 500;
     font-size: 0.75rem;
@@ -589,9 +630,9 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   }
 
   td {
-    padding: 1.25rem 1.5rem;
+    padding: 0.875rem 1.5rem;
     vertical-align: middle;
-    font-size: 0.95rem;
+    font-size: 0.9375rem;
   }
 
   .model-name {
@@ -602,12 +643,37 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   .model-info {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.75rem;
+    position: relative;
+  }
+
+  .copy-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #d1d5db;
+    transition: all 0.15s ease;
+    margin-left: 0.5rem;
+  }
+
+  .copy-button:hover {
+    background-color: #f3f4f6;
+    color: #6b7280;
+  }
+
+  .copy-button:active {
+    transform: scale(0.95);
+    background-color: #e5e7eb;
   }
 
   .provider-avatar {
-    width: 40px;
-    height: 40px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     background-color: white;
     color: white;
@@ -615,11 +681,11 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     align-items: center;
     justify-content: center;
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.75rem;
     flex-shrink: 0;
     overflow: hidden;
     position: relative;
-    padding: 6px;
+    padding: 4px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   }
 
@@ -638,14 +704,14 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     background-color: #1a1a1a;
     color: white;
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.75rem;
     border-radius: 50%;
-    margin: -6px;
+    margin: -4px;
   }
 
   .model-title {
     font-family: monospace;
-    font-size: 0.95rem;
+    font-size: 0.875rem;
     font-weight: 500;
   }
 
