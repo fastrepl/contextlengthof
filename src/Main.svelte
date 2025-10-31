@@ -117,10 +117,7 @@
   .logo-text-header {
     font-size: 1.25rem;
     font-weight: 700;
-    background: linear-gradient(135deg, var(--litellm-primary) 0%, var(--litellm-purple) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: #1a1a1a;
   }
 
   .tabs {
@@ -137,18 +134,15 @@
     font-weight: 500;
     font-size: 0.9375rem;
     cursor: pointer;
-    border-radius: 6px;
     transition: all 0.2s ease;
   }
 
   .tab:hover {
     color: #1a1a1a;
-    background-color: #f3f4f6;
   }
 
   .tab.active {
     color: #1a1a1a;
-    background-color: #f3f4f6;
   }
 
   .nav-links {
