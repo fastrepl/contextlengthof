@@ -538,8 +538,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   .search-icon {
     position: absolute;
     left: 1rem;
-    top: 50%;
-    transform: translateY(-50%);
+    top: 14px;
     color: var(--muted-color);
     pointer-events: none;
     z-index: 1;
