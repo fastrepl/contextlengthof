@@ -3,8 +3,8 @@
   import { fly } from "svelte/transition";
 
   import Fuse from "fuse.js";
-  import Typewriter from "svelte-typewriter";
   import { getProviderInitial, getProviderLogo } from "./providers";
+  import ProviderDropdown from "./ProviderDropdown.svelte";
 
   type Item = {
     name: string;
@@ -184,75 +184,88 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   }
 </script>
 
+<header class="header">
+  <div class="header-content">
+    <div class="logo-section-header">
+      <span class="logo-emoji">🚅</span>
+      <span class="logo-text-header">LiteLLM</span>
+    </div>
+    <nav class="nav-links">
+      <a href="https://docs.litellm.ai/docs/" target="_blank" rel="noopener noreferrer" class="nav-link">Docs</a>
+      <a href="https://github.com/BerriAI/litellm" target="_blank" rel="noopener noreferrer" class="nav-link">GitHub</a>
+    </nav>
+  </div>
+</header>
+
 <main class="container">
-  <!-- svelte-ignore a11y-click-events-have-key-events -->
-  <!-- svelte-ignore a11y-no-static-element-interactions -->
-  <div
-    style="height: 4.5em;"
-    class="truncate"
-    on:click={() => window.location.reload()}
-  >
-    <Typewriter mode="loopOnce" interval={70} cursor={true}>
-      <h2>Search for "gpt-4o"</h2>
-      <h2>Search for "vertex_ai/claude-3-sonnet@20240229"</h2>
-      <h2>Search for "groq/llama3-8b-8192"</h2>
-    </Typewriter>
+  <!-- Hero Section -->
+  <div class="hero">
+    <h1 class="hero-title">Browse LiteLLM Models</h1>
+    <p class="hero-subtitle">
+      A catalog of AI models with pricing and context window information, powered by LiteLLM's comprehensive model database.
+    </p>
+    
+    <div class="cta-buttons">
+      <a 
+        href="https://github.com/BerriAI/litellm" 
+        target="_blank"
+        rel="noopener noreferrer"
+        class="btn btn-primary"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 8px;">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+        View on GitHub
+      </a>
+      <a 
+        href="https://docs.litellm.ai/docs/" 
+        target="_blank"
+        rel="noopener noreferrer"
+        class="btn btn-secondary"
+      >
+        Read the Docs
+      </a>
+    </div>
   </div>
 
-  {#if !loading}
-    <section in:fly={{ y: 20, duration: 800 }}>
-      Brought to you by
-      <a href="https://github.com/fastrepl/canary">🐤 Canary</a>, powered by
-      <a
-        href="https://github.com/BerriAI/litellm/blob/main/model_prices_and_context_window.json"
-      >
-        🚅 Litellm
-      </a>.
-    </section>
-  {:else}
-    <section style="height: 1.5em;" />
-  {/if}
+  <!-- Search and Filters -->
+  <div class="search-section">
+    <div class="search-bar-container">
+      <input
+        id="query"
+        bind:value={query}
+        type="search"
+        autocomplete="off"
+        name="query"
+        aria-label="Search models"
+        placeholder="Search model..."
+        class="search-input"
+      />
+      
+      <ProviderDropdown bind:selectedProvider {providers} />
+    </div>
 
-  <input
-    id="query"
-    bind:value={query}
-    type="search"
-    autocomplete="off"
-    name="query"
-    aria-label="query"
-    placeholder="Search for models..."
-  />
-
-  <div class="filter-container">
-    <div class="filter-row">
-      <div class="filter-item">
-        <label for="provider">Select provider:</label>
-        <select id="provider" bind:value={selectedProvider}>
-          <option value="">All Providers</option>
-          {#each providers as provider}
-            <option value={provider}>{provider}</option>
-          {/each}
-        </select>
-      </div>
-
-      <div class="filter-item">
-        <label for="maxInputTokens">max_input_tokens >=</label>
+    <div class="advanced-filters">
+      <div class="filter-item-inline">
+        <label for="maxInputTokens">Min Input Tokens:</label>
         <input
           id="maxInputTokens"
           bind:value={maxInputTokens}
           type="number"
           min="0"
-          placeholder="Enter minimum max_input_tokens"
+          placeholder="e.g., 100000"
+          class="filter-input"
         />
       </div>
-      <div class="filter-item">
-        <label for="maxOutputTokens">max_output_tokens >=</label>
+      <div class="filter-item-inline">
+        <label for="maxOutputTokens">Min Output Tokens:</label>
         <input
           id="maxOutputTokens"
           bind:value={maxOutputTokens}
           type="number"
           min="0"
-          placeholder="Enter minimum max_output_tokens"
+          placeholder="e.g., 4096"
+          class="filter-input"
         />
       </div>
     </div>
@@ -321,106 +334,242 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
 </main>
 
 <style>
-  h2 {
-    margin-top: 2rem;
-  }
-  input {
-    margin-top: 1rem;
+  :root {
+    --litellm-primary: #6366f1;
+    --litellm-dark: #0f0f23;
+    --litellm-purple: #8b5cf6;
   }
 
-  .truncate {
-    overflow: hidden;
-    text-overflow: ellipsis;
+  /* Header */
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background-color: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--muted-border-color);
+  }
+
+  .header-content {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo-section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+
+  .logo-emoji {
+    font-size: 1.5rem;
+    line-height: 1;
+  }
+
+  .logo-text-header {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--contrast);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  }
+
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+  }
+
+  .nav-link {
+    color: var(--contrast);
+    text-decoration: none;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    transition: color 0.2s ease;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  }
+
+  .nav-link:hover {
+    color: var(--litellm-primary);
+  }
+
+  /* Hero Section */
+  .hero {
+    text-align: center;
+    padding: 5rem 2rem 4rem;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .hero-title {
+    font-size: 4rem;
+    font-weight: 700;
+    line-height: 1.1;
+    margin: 0 0 1.25rem 0;
+    color: var(--contrast);
+    letter-spacing: -0.03em;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  }
+
+  .hero-subtitle {
+    font-size: 1.25rem;
+    line-height: 1.5;
+    color: var(--muted-color);
+    margin: 0 0 2rem 0;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  }
+
+  .cta-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.875rem 2rem;
+    font-size: 1rem;
+    font-weight: 500;
+    border-radius: 100px;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    cursor: pointer;
+  }
+
+  .btn-primary {
+    background-color: #000;
+    color: #fff;
+    border-color: #000;
+  }
+
+  .btn-primary:hover {
+    background-color: #333;
+    border-color: #333;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+
+  .btn-secondary {
+    background-color: #fff;
+    color: var(--contrast);
+    border-color: #e5e5e5;
+  }
+
+  .btn-secondary:hover {
+    border-color: #d4d4d4;
+    background-color: #fafafa;
+  }
+
+  /* Search Section */
+  .search-section {
+    max-width: 1400px;
+    margin: 4rem auto 2rem;
+    padding: 0 2rem;
+  }
+
+  .search-bar-container {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .search-input {
+    flex: 1;
+    padding: 0.875rem 1rem;
+    font-size: 1rem;
+    border: 1px solid var(--muted-border-color);
+    border-radius: 8px;
+    background-color: var(--card-background-color);
+    transition: all 0.2s ease;
+  }
+
+  .search-input:focus {
+    outline: none;
+    border-color: var(--litellm-primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  }
+
+  .search-input::placeholder {
+    color: var(--muted-color);
+  }
+
+  /* Advanced Filters */
+  .advanced-filters {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .filter-item-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .filter-item-inline label {
+    font-size: 0.875rem;
+    color: var(--muted-color);
     white-space: nowrap;
   }
 
-  /* Improved select/dropdown styles */
-  select {
-    width: 100%;
-    padding: 0.75rem 1rem;
-    font-size: 1rem;
-    border: 1px solid var(--form-element-border-color);
-    border-radius: 8px;
-    background-color: var(--form-element-background-color);
-    cursor: pointer;
+  .filter-input {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    border: 1px solid var(--muted-border-color);
+    border-radius: 6px;
+    background-color: var(--card-background-color);
     transition: all 0.2s ease;
+    width: 150px;
   }
 
-  select:hover {
-    border-color: var(--primary);
+  .filter-input:focus {
+    outline: none;
+    border-color: var(--litellm-primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
   }
 
-  select:focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.1);
-  }
-
-  input,
-  select {
-    margin-top: 0.5rem;
-  }
-
-  .filter-container {
-    margin-top: 1rem;
-  }
-
-  .filter-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 1rem;
-  }
-
-  .filter-item {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-  }
-
-  .filter-item label {
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--contrast);
-    margin-bottom: 0.5rem;
-  }
-
-  input[type="number"] {
-    width: 100%;
-    padding: 0.75rem 1rem;
-    font-size: 1rem;
-    border: 1px solid var(--form-element-border-color);
-    border-radius: 8px;
-    transition: all 0.2s ease;
-  }
-
-  input[type="number"]:focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.1);
+  .filter-input::placeholder {
+    color: var(--muted-color);
   }
 
   /* Table styles */
   .table-container {
-    margin-top: 2rem;
+    margin: 2rem auto 4rem;
+    max-width: 1400px;
+    padding: 0 2rem;
     overflow-x: auto;
-    border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   }
 
   table {
     width: 100%;
     border-collapse: collapse;
     background: var(--card-background-color);
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--muted-border-color);
   }
 
   thead {
-    background-color: var(--muted-border-color);
+    background-color: var(--card-background-color);
+    border-bottom: 1px solid var(--muted-border-color);
   }
 
   th {
-    padding: 1.25rem 1.5rem;
+    padding: 1rem 1.5rem;
     text-align: left;
     font-weight: 500;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--muted-color);
@@ -507,5 +656,82 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
 
   .cost-cell {
     color: var(--muted-color);
+  }
+
+  /* Responsive Design */
+  @media (max-width: 768px) {
+    .header-content {
+      padding: 1rem;
+    }
+
+    .logo-text-header {
+      font-size: 1.125rem;
+    }
+
+    .nav-links {
+      gap: 1rem;
+    }
+
+    .nav-link {
+      font-size: 0.875rem;
+    }
+
+    .hero {
+      padding: 2rem 1rem;
+    }
+
+    .hero-title {
+      font-size: 2.5rem;
+    }
+
+    .hero-subtitle {
+      font-size: 1rem;
+    }
+
+    .cta-buttons {
+      flex-direction: column;
+      width: 100%;
+    }
+
+    .btn {
+      width: 100%;
+    }
+
+    .search-bar-container {
+      flex-direction: column;
+    }
+
+    .advanced-filters {
+      flex-direction: column;
+      width: 100%;
+    }
+
+    .filter-item-inline {
+      width: 100%;
+    }
+
+    .filter-input {
+      flex: 1;
+      width: auto;
+    }
+
+    th, td {
+      padding: 0.75rem 1rem;
+      font-size: 0.875rem;
+    }
+
+    .model-name {
+      min-width: 200px;
+    }
+
+    .provider-avatar {
+      width: 32px;
+      height: 32px;
+      padding: 4px;
+    }
+
+    .model-title {
+      font-size: 0.875rem;
+    }
   }
 </style>
