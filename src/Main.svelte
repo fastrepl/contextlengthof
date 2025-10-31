@@ -12,9 +12,27 @@
   <!-- Header -->
   <header class="header">
     <div class="header-content">
-      <div class="logo-section-header">
-        <span class="logo-emoji">🚅</span>
-        <span class="logo-text-header">LiteLLM</span>
+      <div class="left-section">
+        <div class="logo-section-header">
+          <span class="logo-emoji">🚅</span>
+          <span class="logo-text-header">LiteLLM</span>
+        </div>
+        <div class="tabs">
+          <button 
+            class="tab" 
+            class:active={activeTab === "models"}
+            on:click={() => activeTab = "models"}
+          >
+            Models
+          </button>
+          <button 
+            class="tab" 
+            class:active={activeTab === "providers"}
+            on:click={() => activeTab = "providers"}
+          >
+            Providers & Endpoints
+          </button>
+        </div>
       </div>
       <nav class="nav-links">
         <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" class="nav-link">Docs</a>
@@ -22,26 +40,6 @@
       </nav>
     </div>
   </header>
-
-  <!-- Tabs -->
-  <div class="tabs-container">
-    <div class="tabs">
-      <button 
-        class="tab" 
-        class:active={activeTab === "models"}
-        on:click={() => activeTab = "models"}
-      >
-        Models
-      </button>
-      <button 
-        class="tab" 
-        class:active={activeTab === "providers"}
-        on:click={() => activeTab = "providers"}
-      >
-        Providers & Endpoints
-      </button>
-    </div>
-  </div>
 
   <!-- Content -->
   {#if activeTab === "models"}
@@ -94,10 +92,16 @@
   .header-content {
     max-width: 1400px;
     margin: 0 auto;
-    padding: 1.25rem 2rem;
+    padding: 1rem 2rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
+  }
+
+  .left-section {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
   }
 
   .logo-section-header {
@@ -119,6 +123,34 @@
     background-clip: text;
   }
 
+  .tabs {
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+  }
+
+  .tab {
+    padding: 0.625rem 1rem;
+    border: none;
+    background: transparent;
+    color: #6b7280;
+    font-weight: 500;
+    font-size: 0.9375rem;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+  }
+
+  .tab:hover {
+    color: #1a1a1a;
+    background-color: #f3f4f6;
+  }
+
+  .tab.active {
+    color: #1a1a1a;
+    background-color: #f3f4f6;
+  }
+
   .nav-links {
     display: flex;
     gap: 1.5rem;
@@ -126,7 +158,7 @@
   }
 
   .nav-link {
-    color: var(--contrast);
+    color: #1a1a1a;
     text-decoration: none;
     font-weight: 500;
     font-size: 0.9375rem;
@@ -135,44 +167,6 @@
 
   .nav-link:hover {
     color: var(--litellm-primary);
-  }
-
-  /* Tabs */
-  .tabs-container {
-    background: #ffffff;
-    border-bottom: 1px solid #e5e7eb;
-    position: sticky;
-    top: 64px;
-    z-index: 99;
-  }
-
-  .tabs {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 0 2rem;
-    display: flex;
-    gap: 0.5rem;
-  }
-
-  .tab {
-    padding: 1rem 1.5rem;
-    border: none;
-    background: transparent;
-    color: var(--muted-color);
-    font-weight: 500;
-    font-size: 0.9375rem;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    transition: all 0.2s ease;
-  }
-
-  .tab:hover {
-    color: var(--contrast);
-  }
-
-  .tab.active {
-    color: #2563eb;
-    border-bottom-color: #2563eb;
   }
 </style>
 
