@@ -181,6 +181,34 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
       loading = false;
     }
   }
+
+  function getProviderInitial(provider: string): string {
+    if (!provider) return "?";
+    
+    // Map common providers to their initials/abbreviations
+    const providerMap: { [key: string]: string } = {
+      "anthropic": "A",
+      "openai": "O",
+      "azure": "Az",
+      "bedrock": "B",
+      "vertex_ai": "V",
+      "cohere": "C",
+      "huggingface": "H",
+      "replicate": "R",
+      "groq": "G",
+      "together_ai": "T",
+      "mistral": "M",
+      "deepinfra": "D",
+    };
+
+    const lowerProvider = provider.toLowerCase();
+    if (providerMap[lowerProvider]) {
+      return providerMap[lowerProvider];
+    }
+    
+    // Default to first letter uppercase
+    return provider.charAt(0).toUpperCase();
+  }
 </script>
 
 <main class="container">
@@ -266,23 +294,43 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
       </section>
     {/if}
 
-    {#each results as { item: { name, mode, litellm_provider, ...data } } (name)}
-      <details>
-        <summary>{name}</summary>
-        <div class="relative">
-          <pre>{JSON.stringify(data, null, 2)}</pre>
-          <a href={getIssueUrlForFix(name)}> Incorrect or missing? </a>
-        </div>
-      </details>
-    {/each}
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Context</th>
+            <th>Input Tokens</th>
+            <th>Output Tokens</th>
+            <th>Cache Read Tokens</th>
+            <th>Cache Write Tokens</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each results as { item: { name, mode, litellm_provider, max_input_tokens, max_output_tokens, input_cost_per_token, output_cost_per_token, cache_creation_input_token_cost, cache_read_input_token_cost, ...data } } (name)}
+            <tr>
+              <td class="model-name">
+                <div class="model-info">
+                  <div class="provider-avatar">
+                    {getProviderInitial(litellm_provider)}
+                  </div>
+                  <span class="model-title">{name}</span>
+                </div>
+              </td>
+              <td class="context-cell">{max_input_tokens && max_input_tokens > 0 ? (max_input_tokens >= 1000000 ? (max_input_tokens / 1000000).toFixed(0) + 'M' : (max_input_tokens / 1000).toFixed(0) + 'K') : '—'}</td>
+              <td class="cost-cell">{input_cost_per_token ? '$' + (input_cost_per_token * 1000000).toFixed(2) + '/M' : '—'}</td>
+              <td class="cost-cell">{output_cost_per_token ? '$' + (output_cost_per_token * 1000000).toFixed(2) + '/M' : '—'}</td>
+              <td class="cost-cell">{cache_read_input_token_cost ? '$' + (cache_read_input_token_cost * 1000000).toFixed(2) + '/M' : '—'}</td>
+              <td class="cost-cell">{cache_creation_input_token_cost ? '$' + (cache_creation_input_token_cost * 1000000).toFixed(2) + '/M' : '—'}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
   {/if}
 </main>
 
 <style>
-  summary:hover {
-    font-weight: bold;
-  }
-
   h2 {
     margin-top: 2rem;
   }
@@ -296,27 +344,30 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     white-space: nowrap;
   }
 
-  /* Remove the margin-top from the existing select style */
+  /* Improved select/dropdown styles */
   select {
     width: 100%;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    border: 1px solid var(--form-element-border-color);
+    border-radius: 8px;
+    background-color: var(--form-element-background-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
   }
 
-  summary:hover {
-    font-weight: bold;
+  select:hover {
+    border-color: var(--primary);
   }
 
-  h2 {
-    margin-top: 2rem;
+  select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.1);
   }
+
   input,
   select {
-    margin-top: 0.5rem; /* Ensure margin top for all inputs and selects */
-  }
-
-  .truncate {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    margin-top: 0.5rem;
   }
 
   .filter-container {
@@ -325,21 +376,122 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
 
   .filter-row {
     display: flex;
-    justify-content: space-between; /* spaces filter items across the row */
-    align-items: center; /* aligns items vertically in the middle */
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
   }
 
   .filter-item {
     display: flex;
-    flex-direction: column; /* stacks label and input vertically */
+    flex-direction: column;
     flex: 1;
-    padding: 0 10px;
   }
 
-  /* Alignment and full width for inputs inside flex containers */
-  select,
+  .filter-item label {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--contrast);
+    margin-bottom: 0.5rem;
+  }
+
   input[type="number"] {
-    width: 100%; /* makes input take full width of its parent */
-    margin-top: 0.4rem; /* Add a little top margin for visual spacing */
+    width: 100%;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    border: 1px solid var(--form-element-border-color);
+    border-radius: 8px;
+    transition: all 0.2s ease;
+  }
+
+  input[type="number"]:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.1);
+  }
+
+  /* Table styles */
+  .table-container {
+    margin-top: 2rem;
+    overflow-x: auto;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card-background-color);
+  }
+
+  thead {
+    background-color: var(--muted-border-color);
+  }
+
+  th {
+    padding: 1.25rem 1.5rem;
+    text-align: left;
+    font-weight: 500;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted-color);
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--muted-border-color);
+    transition: background-color 0.15s ease;
+  }
+
+  tbody tr:hover {
+    background-color: var(--table-row-stripped-background-color);
+  }
+
+  tbody tr:last-child {
+    border-bottom: none;
+  }
+
+  td {
+    padding: 1.25rem 1.5rem;
+    vertical-align: middle;
+    font-size: 0.95rem;
+  }
+
+  .model-name {
+    font-weight: 500;
+    min-width: 300px;
+  }
+
+  .model-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .provider-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #1a1a1a;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+  }
+
+  .model-title {
+    font-family: monospace;
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+
+  .context-cell {
+    color: var(--contrast);
+    font-weight: 500;
+  }
+
+  .cost-cell {
+    color: var(--muted-color);
   }
 </style>
