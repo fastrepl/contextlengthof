@@ -120,7 +120,7 @@
     gap: 0.75rem;
     padding: 0.875rem 1rem;
     font-size: 1rem;
-    border: 1px solid var(--muted-border-color);
+    border: 1px solid #d1d5db;
     border-radius: 8px;
     background-color: #ffffff;
     cursor: pointer;
@@ -132,7 +132,7 @@
   }
 
   .dropdown-trigger:hover {
-    border-color: #6366f1;
+    border-color: #9ca3af;
   }
 
   .dropdown-trigger:focus {

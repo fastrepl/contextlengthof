@@ -255,7 +255,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
         <input
           id="query"
           bind:value={query}
-          type="search"
+          type="text"
           autocomplete="off"
           name="query"
           aria-label="Search models"
@@ -267,9 +267,9 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
       <ProviderDropdown bind:selectedProvider {providers} />
     </div>
 
-    <div class="advanced-filters">
-      <div class="filter-item-inline">
-        <label for="maxInputTokens">Min Input Tokens:</label>
+    <div class="filters-row">
+      <div class="filter-group">
+        <label for="maxInputTokens">Min Input Tokens</label>
         <input
           id="maxInputTokens"
           bind:value={maxInputTokens}
@@ -279,8 +279,8 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
           class="filter-input"
         />
       </div>
-      <div class="filter-item-inline">
-        <label for="maxOutputTokens">Min Output Tokens:</label>
+      <div class="filter-group">
+        <label for="maxOutputTokens">Min Output Tokens</label>
         <input
           id="maxOutputTokens"
           bind:value={maxOutputTokens}
@@ -549,12 +549,16 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     width: 100%;
     padding: 0.875rem 1rem 0.875rem 3rem;
     font-size: 1rem;
-    border: 1px solid var(--muted-border-color);
+    border: 1px solid #d1d5db;
     border-radius: 8px;
     background-color: #ffffff;
     transition: all 0.2s ease;
     height: 48px;
     box-sizing: border-box;
+  }
+
+  .search-input:hover {
+    border-color: #9ca3af;
   }
 
   .search-input:focus {
@@ -567,33 +571,39 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     color: var(--muted-color);
   }
 
-  /* Advanced Filters */
-  .advanced-filters {
-    display: flex;
+  /* Filters */
+  .filters-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 1rem;
-    flex-wrap: wrap;
+    margin-top: 1rem;
   }
 
-  .filter-item-inline {
+  .filter-group {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: 0.5rem;
   }
 
-  .filter-item-inline label {
+  .filter-group label {
     font-size: 0.875rem;
-    color: var(--muted-color);
-    white-space: nowrap;
+    font-weight: 500;
+    color: var(--contrast);
   }
 
   .filter-input {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.875rem;
-    border: 1px solid var(--muted-border-color);
-    border-radius: 6px;
-    background-color: var(--card-background-color);
+    padding: 0.875rem 1rem;
+    font-size: 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background-color: #ffffff;
     transition: all 0.2s ease;
-    width: 150px;
+    height: 48px;
+    box-sizing: border-box;
+  }
+
+  .filter-input:hover {
+    border-color: #9ca3af;
   }
 
   .filter-input:focus {
