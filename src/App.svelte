@@ -127,6 +127,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   let index: Fuse<Item>;
   let results: ResultItem[] = [];
   let loading = true;
+  let expandedRows = new Set<string>();
 
   $: {
     if (index) {
@@ -138,6 +139,15 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     navigator.clipboard.writeText(text).then(() => {
       // You could add a toast notification here if desired
     });
+  }
+
+  function toggleRow(name: string) {
+    if (expandedRows.has(name)) {
+      expandedRows.delete(name);
+    } else {
+      expandedRows.add(name);
+    }
+    expandedRows = expandedRows; // Trigger reactivity
   }
 
   function filterResults(
@@ -306,9 +316,12 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
         </thead>
         <tbody>
           {#each results as { item: { name, mode, litellm_provider, max_input_tokens, max_output_tokens, input_cost_per_token, output_cost_per_token, cache_creation_input_token_cost, cache_read_input_token_cost, ...data } } (name)}
-            <tr>
+            <tr class="model-row" class:expanded={expandedRows.has(name)} on:click={() => toggleRow(name)}>
               <td class="model-name">
                 <div class="model-info">
+                  <svg class="expand-icon" class:expanded={expandedRows.has(name)} width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
                   <div class="provider-avatar">
                     {#if getProviderLogo(litellm_provider)}
                       <img 
@@ -332,7 +345,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
                   <span class="model-title">{name}</span>
                   <button 
                     class="copy-button" 
-                    on:click={() => copyToClipboard(name)}
+                    on:click|stopPropagation={() => copyToClipboard(name)}
                     title="Copy model name"
                     type="button"
                   >
@@ -343,12 +356,21 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
                   </button>
                 </div>
               </td>
-              <td class="context-cell">{max_input_tokens && max_input_tokens > 0 ? (max_input_tokens >= 1000000 ? (max_input_tokens / 1000000).toFixed(0) + 'M' : (max_input_tokens / 1000).toFixed(0) + 'K') : '—'}</td>
+              <td class="context-cell">{max_input_tokens && max_input_tokens > 0 && (max_input_tokens / 1000).toFixed(0) !== '0' ? (max_input_tokens >= 1000000 ? (max_input_tokens / 1000000).toFixed(0) + 'M' : (max_input_tokens / 1000).toFixed(0) + 'K') : '—'}</td>
               <td class="cost-cell">{input_cost_per_token ? '$' + (input_cost_per_token * 1000000).toFixed(2) + '/M' : '—'}</td>
               <td class="cost-cell">{output_cost_per_token ? '$' + (output_cost_per_token * 1000000).toFixed(2) + '/M' : '—'}</td>
               <td class="cost-cell">{cache_read_input_token_cost ? '$' + (cache_read_input_token_cost * 1000000).toFixed(2) + '/M' : '—'}</td>
               <td class="cost-cell">{cache_creation_input_token_cost ? '$' + (cache_creation_input_token_cost * 1000000).toFixed(2) + '/M' : '—'}</td>
             </tr>
+            {#if expandedRows.has(name)}
+              <tr class="expanded-content" transition:fly={{ y: -10, duration: 200 }}>
+                <td colspan="6">
+                  <div class="code-block">
+                    <pre><code>{JSON.stringify({ name, mode, litellm_provider, max_input_tokens, max_output_tokens, input_cost_per_token, output_cost_per_token, cache_creation_input_token_cost, cache_read_input_token_cost, ...data }, null, 2)}</code></pre>
+                  </div>
+                </td>
+              </tr>
+            {/if}
           {/each}
         </tbody>
       </table>
@@ -616,17 +638,30 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     color: var(--muted-color);
   }
 
-  tbody tr {
+  tbody tr.model-row {
     border-bottom: 1px solid var(--muted-border-color);
     transition: background-color 0.15s ease;
+    cursor: pointer;
   }
 
-  tbody tr:hover {
+  tbody tr.model-row:hover {
     background-color: var(--table-row-stripped-background-color);
   }
 
-  tbody tr:last-child {
+  tbody tr.model-row.expanded {
+    background-color: #f5f5f5;
+  }
+
+  tbody tr.model-row:last-child {
     border-bottom: none;
+  }
+
+  tbody tr.expanded-content {
+    border-bottom: 1px solid var(--muted-border-color);
+  }
+
+  tbody tr.expanded-content td {
+    padding: 0;
   }
 
   td {
@@ -645,6 +680,16 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     align-items: center;
     gap: 0.75rem;
     position: relative;
+  }
+
+  .expand-icon {
+    color: var(--muted-color);
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .expand-icon.expanded {
+    transform: rotate(90deg);
   }
 
   .copy-button {
@@ -722,6 +767,26 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
 
   .cost-cell {
     color: var(--muted-color);
+  }
+
+  .code-block {
+    background-color: #f8f9fa;
+    border-top: 1px solid var(--muted-border-color);
+    margin: 0;
+    padding: 1.5rem;
+    overflow-x: auto;
+  }
+
+  .code-block pre {
+    margin: 0;
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 0.875rem;
+    line-height: 1.6;
+  }
+
+  .code-block code {
+    color: #24292f;
+    display: block;
   }
 
   /* Responsive Design */
