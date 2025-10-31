@@ -48,17 +48,20 @@
     }
 
     // Close dropdowns when clicking outside
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: Event) => {
       const target = event.target as HTMLElement;
-      if (!target.closest('.custom-dropdown')) {
+      const dropdown = target.closest('.custom-dropdown');
+      if (!dropdown) {
         viewModeOpen = false;
         filterOpen = false;
       }
     };
-    document.addEventListener('click', handleClickOutside);
+    
+    // Use mousedown instead of click for better responsiveness
+    document.addEventListener('mousedown', handleClickOutside);
     
     return () => {
-      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   });
 
@@ -68,9 +71,9 @@
   }
 
   $: {
-    // Apply filters
+    // Apply filters - ensure we start with full data when switching views
     let tempProviders = providers;
-    let tempEndpoints = endpointColumns;
+    let tempEndpoints = endpointColumns.length > 0 ? [...endpointColumns] : [];
 
     // Apply search query
     if (searchQuery.trim() !== "") {
@@ -99,11 +102,6 @@
 
     filteredProviders = tempProviders;
     filteredEndpoints = tempEndpoints;
-  }
-
-  // Initialize filtered endpoints when endpoint columns are ready
-  $: if (endpointColumns.length > 0 && filteredEndpoints.length === 0) {
-    filteredEndpoints = endpointColumns;
   }
 
   function formatEndpointName(endpoint: string): string {
@@ -160,18 +158,34 @@
 
       <!-- View Mode Dropdown -->
       <div class="custom-dropdown">
-        <button class="dropdown-trigger" on:click|stopPropagation={() => viewModeOpen = !viewModeOpen} type="button">
+        <button class="dropdown-trigger" on:click={() => viewModeOpen = !viewModeOpen} type="button">
           <span>{viewMode === "provider" ? "View by Provider" : "View by Endpoint"}</span>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
         {#if viewModeOpen}
-          <div class="dropdown-menu" transition:fly={{ y: -10, duration: 150 }}>
-            <button class="dropdown-option" class:selected={viewMode === "provider"} on:click|stopPropagation={() => { viewMode = "provider"; viewModeOpen = false; }} type="button">
+          <div class="dropdown-menu">
+            <button 
+              class="dropdown-option" 
+              class:selected={viewMode === "provider"} 
+              on:click={() => { 
+                viewMode = "provider"; 
+                viewModeOpen = false;
+              }} 
+              type="button"
+            >
               View by Provider
             </button>
-            <button class="dropdown-option" class:selected={viewMode === "endpoint"} on:click|stopPropagation={() => { viewMode = "endpoint"; viewModeOpen = false; }} type="button">
+            <button 
+              class="dropdown-option" 
+              class:selected={viewMode === "endpoint"} 
+              on:click={() => { 
+                viewMode = "endpoint";
+                viewModeOpen = false;
+              }} 
+              type="button"
+            >
               View by Endpoint
             </button>
           </div>
@@ -180,26 +194,26 @@
 
       <!-- Filter Dropdown -->
       <div class="custom-dropdown">
-        <button class="dropdown-trigger" on:click|stopPropagation={() => filterOpen = !filterOpen} type="button">
+        <button class="dropdown-trigger" on:click={() => filterOpen = !filterOpen} type="button">
           <span>{selectedFilter ? (viewMode === "provider" ? providers.find(p => p.provider === selectedFilter)?.display_name.replace(/\s*\(.*?\)\s*$/, '') : formatEndpointName(selectedFilter)) : `All ${viewMode === "provider" ? "Providers" : "Endpoints"}`}</span>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
         {#if filterOpen}
-          <div class="dropdown-menu scrollable" transition:fly={{ y: -10, duration: 150 }}>
-            <button class="dropdown-option" class:selected={!selectedFilter} on:click|stopPropagation={() => { selectedFilter = ""; filterOpen = false; }} type="button">
+          <div class="dropdown-menu scrollable">
+            <button class="dropdown-option" class:selected={!selectedFilter} on:click={() => { selectedFilter = ""; filterOpen = false; }} type="button">
               All {viewMode === "provider" ? "Providers" : "Endpoints"}
             </button>
             {#if viewMode === "provider"}
               {#each providers as { provider, display_name }}
-                <button class="dropdown-option" class:selected={selectedFilter === provider} on:click|stopPropagation={() => { selectedFilter = provider; filterOpen = false; }} type="button">
+                <button class="dropdown-option" class:selected={selectedFilter === provider} on:click={() => { selectedFilter = provider; filterOpen = false; }} type="button">
                   {display_name.replace(/\s*\(.*?\)\s*$/, '')}
                 </button>
               {/each}
             {:else}
               {#each endpointColumns as endpoint}
-                <button class="dropdown-option" class:selected={selectedFilter === endpoint} on:click|stopPropagation={() => { selectedFilter = endpoint; filterOpen = false; }} type="button">
+                <button class="dropdown-option" class:selected={selectedFilter === endpoint} on:click={() => { selectedFilter = endpoint; filterOpen = false; }} type="button">
                   {formatEndpointName(endpoint)}
                 </button>
               {/each}
