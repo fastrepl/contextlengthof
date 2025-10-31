@@ -30,7 +30,7 @@
             class:active={activeTab === "providers"}
             on:click={() => activeTab = "providers"}
           >
-            Providers & Endpoints
+            AI Gateway - Endpoints & Providers
           </button>
         </div>
       </div>

@@ -136,8 +136,8 @@
 <main>
   <div class="hero">
     <div class="hero-content">
-      <h1 class="hero-title">Supported Providers <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" class="docs-link">(Docs)</a></h1>
-      <p class="hero-subtitle">Browse all AI providers and their supported endpoints through LiteLLM Gateway</p>
+      <h1 class="hero-title">Supported Endpoints & Providers <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" class="docs-link">(Docs)</a></h1>
+      <p class="hero-subtitle">Browse all AI providers and their supported endpoints through LiteLLM AI Gateway</p>
     </div>
   </div>
 
@@ -168,10 +168,10 @@
         </button>
         {#if viewModeOpen}
           <div class="dropdown-menu" transition:fly={{ y: -10, duration: 150 }}>
-            <button class="dropdown-option" class:selected={viewMode === "provider"} on:click={() => { viewMode = "provider"; viewModeOpen = false; }} type="button">
+            <button class="dropdown-option" class:selected={viewMode === "provider"} on:click|stopPropagation={() => { viewMode = "provider"; viewModeOpen = false; }} type="button">
               View by Provider
             </button>
-            <button class="dropdown-option" class:selected={viewMode === "endpoint"} on:click={() => { viewMode = "endpoint"; viewModeOpen = false; }} type="button">
+            <button class="dropdown-option" class:selected={viewMode === "endpoint"} on:click|stopPropagation={() => { viewMode = "endpoint"; viewModeOpen = false; }} type="button">
               View by Endpoint
             </button>
           </div>
@@ -188,18 +188,18 @@
         </button>
         {#if filterOpen}
           <div class="dropdown-menu scrollable" transition:fly={{ y: -10, duration: 150 }}>
-            <button class="dropdown-option" class:selected={!selectedFilter} on:click={() => { selectedFilter = ""; filterOpen = false; }} type="button">
+            <button class="dropdown-option" class:selected={!selectedFilter} on:click|stopPropagation={() => { selectedFilter = ""; filterOpen = false; }} type="button">
               All {viewMode === "provider" ? "Providers" : "Endpoints"}
             </button>
             {#if viewMode === "provider"}
               {#each providers as { provider, display_name }}
-                <button class="dropdown-option" class:selected={selectedFilter === provider} on:click={() => { selectedFilter = provider; filterOpen = false; }} type="button">
+                <button class="dropdown-option" class:selected={selectedFilter === provider} on:click|stopPropagation={() => { selectedFilter = provider; filterOpen = false; }} type="button">
                   {display_name.replace(/\s*\(.*?\)\s*$/, '')}
                 </button>
               {/each}
             {:else}
               {#each endpointColumns as endpoint}
-                <button class="dropdown-option" class:selected={selectedFilter === endpoint} on:click={() => { selectedFilter = endpoint; filterOpen = false; }} type="button">
+                <button class="dropdown-option" class:selected={selectedFilter === endpoint} on:click|stopPropagation={() => { selectedFilter = endpoint; filterOpen = false; }} type="button">
                   {formatEndpointName(endpoint)}
                 </button>
               {/each}
