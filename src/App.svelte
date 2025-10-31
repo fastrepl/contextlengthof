@@ -4,6 +4,7 @@
 
   import Fuse from "fuse.js";
   import Typewriter from "svelte-typewriter";
+  import { getProviderInitial, getProviderLogo } from "./providers";
 
   type Item = {
     name: string;
@@ -181,34 +182,6 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
       loading = false;
     }
   }
-
-  function getProviderInitial(provider: string): string {
-    if (!provider) return "?";
-    
-    // Map common providers to their initials/abbreviations
-    const providerMap: { [key: string]: string } = {
-      "anthropic": "A",
-      "openai": "O",
-      "azure": "Az",
-      "bedrock": "B",
-      "vertex_ai": "V",
-      "cohere": "C",
-      "huggingface": "H",
-      "replicate": "R",
-      "groq": "G",
-      "together_ai": "T",
-      "mistral": "M",
-      "deepinfra": "D",
-    };
-
-    const lowerProvider = provider.toLowerCase();
-    if (providerMap[lowerProvider]) {
-      return providerMap[lowerProvider];
-    }
-    
-    // Default to first letter uppercase
-    return provider.charAt(0).toUpperCase();
-  }
 </script>
 
 <main class="container">
@@ -312,7 +285,24 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
               <td class="model-name">
                 <div class="model-info">
                   <div class="provider-avatar">
-                    {getProviderInitial(litellm_provider)}
+                    {#if getProviderLogo(litellm_provider)}
+                      <img 
+                        src={getProviderLogo(litellm_provider)} 
+                        alt={litellm_provider}
+                        class="provider-logo-img"
+                        on:error={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.nextElementSibling.style.display = 'flex';
+                        }}
+                      />
+                      <div class="provider-initial" style="display: none;">
+                        {getProviderInitial(litellm_provider)}
+                      </div>
+                    {:else}
+                      <div class="provider-initial">
+                        {getProviderInitial(litellm_provider)}
+                      </div>
+                    {/if}
                   </div>
                   <span class="model-title">{name}</span>
                 </div>
@@ -470,7 +460,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background-color: #1a1a1a;
+    background-color: white;
     color: white;
     display: flex;
     align-items: center;
@@ -478,6 +468,30 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     font-weight: 600;
     font-size: 0.9rem;
     flex-shrink: 0;
+    overflow: hidden;
+    position: relative;
+    padding: 6px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .provider-logo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .provider-initial {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #1a1a1a;
+    color: white;
+    font-weight: 600;
+    font-size: 0.9rem;
+    border-radius: 50%;
+    margin: -6px;
   }
 
   .model-title {
