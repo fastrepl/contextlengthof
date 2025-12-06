@@ -130,12 +130,6 @@
     ];
   }
 
-  // Calculate statistics
-  $: providerCount = providers.length;
-  $: endpointCount = endpointColumns.length;
-  $: providerEndpointCount = providers.reduce((total, provider) => {
-    return total + Object.values(provider.endpoints).filter(supported => supported === true).length;
-  }, 0);
 </script>
 
 <main>
@@ -145,26 +139,6 @@
       <p class="hero-subtitle">Browse all AI providers and their supported endpoints through LiteLLM AI Gateway</p>
     </div>
   </div>
-
-  <!-- Statistics Cards -->
-  {#if !loading}
-    <div class="stats-section">
-      <div class="stats-container">
-        <div class="stat-card">
-          <div class="stat-value">{providerCount}</div>
-          <div class="stat-label">Providers</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value">{endpointCount}</div>
-          <div class="stat-label">Unique Endpoints</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value">{providerEndpointCount}</div>
-          <div class="stat-label">Provider + Endpoint Combinations</div>
-        </div>
-      </div>
-    </div>
-  {/if}
 
   <!-- Search and Filters -->
   <div class="search-section">
@@ -423,49 +397,6 @@
     font-size: 1.25rem;
     color: #6b7280;
     line-height: 1.6;
-  }
-
-  /* Statistics Section */
-  .stats-section {
-    max-width: 1400px;
-    margin: 0 auto 3rem;
-    padding: 0 2rem;
-  }
-
-  .stats-container {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1.5rem;
-  }
-
-  .stat-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 12px;
-    padding: 2rem;
-    text-align: center;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
-  }
-
-  .stat-value {
-    font-size: 3rem;
-    font-weight: 700;
-    color: #ffffff;
-    line-height: 1;
-    margin-bottom: 0.5rem;
-  }
-
-  .stat-label {
-    font-size: 1rem;
-    font-weight: 500;
-    color: rgba(255, 255, 255, 0.9);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
   }
 
   /* Search Section */
@@ -880,23 +811,6 @@
 
     .hero-subtitle {
       font-size: 1rem;
-    }
-
-    .stats-container {
-      grid-template-columns: 1fr;
-      gap: 1rem;
-    }
-
-    .stat-card {
-      padding: 1.5rem;
-    }
-
-    .stat-value {
-      font-size: 2.5rem;
-    }
-
-    .stat-label {
-      font-size: 0.875rem;
     }
 
     .view-section {
