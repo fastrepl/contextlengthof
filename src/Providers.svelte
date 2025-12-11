@@ -129,6 +129,7 @@
       ...sorted.filter(e => !priorityOrder.includes(e))
     ];
   }
+
 </script>
 
 <main>

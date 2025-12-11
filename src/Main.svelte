@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import App from "./App.svelte";
   import Providers from "./Providers.svelte";
 
@@ -20,6 +21,54 @@
     activeTab = tab;
     closeMobileMenu();
   }
+  const PROVIDERS_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/provider_endpoints_support.json";
+  const MODELS_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json";
+
+  let providerCount = 0;
+  let endpointCount = 0;
+  let providerEndpointCount = 0;
+  let modelCount = 0;
+  let statsLoading = true;
+
+  onMount(async () => {
+    try {
+      // Fetch provider data
+      const providersResponse = await fetch(PROVIDERS_URL);
+      const providersData = await providersResponse.json();
+      
+      if (providersData.providers) {
+        const providers = Object.entries(providersData.providers).map(([provider, info]: [string, any]) => ({
+          provider,
+          endpoints: info.endpoints || {}
+        }));
+        
+        providerCount = providers.length;
+        
+        // Count unique endpoints
+        const allEndpoints = new Set<string>();
+        providers.forEach(p => {
+          Object.keys(p.endpoints).forEach(e => allEndpoints.add(e));
+        });
+        endpointCount = allEndpoints.size;
+        
+        // Count provider + endpoint combinations
+        providerEndpointCount = providers.reduce((total, provider) => {
+          return total + Object.values(provider.endpoints).filter(supported => supported === true).length;
+        }, 0);
+      }
+
+      // Fetch model data
+      const modelsResponse = await fetch(MODELS_URL);
+      const modelsText = await modelsResponse.text();
+      const modelsData = JSON.parse(modelsText);
+      modelCount = Object.keys(modelsData).length;
+      
+      statsLoading = false;
+    } catch (error) {
+      console.error("Failed to load statistics:", error);
+      statsLoading = false;
+    }
+  });
 </script>
 
 <div class="app-container">
@@ -92,6 +141,30 @@
       </div>
     {/if}
   </header>
+
+  <!-- Statistics Section -->
+  {#if !statsLoading}
+    <div class="stats-section">
+      <div class="stats-container">
+        <div class="stat-card">
+          <div class="stat-value">{modelCount}</div>
+          <div class="stat-label">Models Supported</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{providerCount}</div>
+          <div class="stat-label">Providers</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{endpointCount}</div>
+          <div class="stat-label">Unique Endpoints</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{providerEndpointCount}</div>
+          <div class="stat-label">Provider + Endpoint Combinations</div>
+        </div>
+      </div>
+    </div>
+  {/if}
 
   <!-- Content -->
   {#if activeTab === "models"}
@@ -343,6 +416,85 @@
 
     .mobile-menu {
       display: block;
+    }
+  }
+
+  /* Statistics Section */
+  .stats-section {
+    max-width: 1400px;
+    margin: 1.5rem auto;
+    padding: 0 2rem;
+  }
+
+  .stats-container {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
+  }
+
+  .stat-card {
+    background: #fcfcfc;
+    border: 1px solid #f5f5f5;
+    border-radius: 6px;
+    padding: 0.875rem 0.75rem;
+    text-align: center;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+  }
+
+  .stat-card:hover {
+    background-color: #fafafa;
+    border-color: #f0f0f0;
+  }
+
+  .stat-value {
+    font-size: 1.375rem;
+    font-weight: 600;
+    color: #1a1a1a;
+    line-height: 1;
+    margin-bottom: 0.25rem;
+  }
+
+  .stat-label {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  /* Responsive Design */
+  @media (max-width: 1024px) {
+    .stats-container {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 640px) {
+    .stats-container {
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+    }
+
+    .stat-card {
+      padding: 1rem;
+    }
+
+    .stat-value {
+      font-size: 1.5rem;
+    }
+
+    .stat-label {
+      font-size: 0.6875rem;
+    }
+
+    .tabs {
+      width: 100%;
+      flex-wrap: wrap;
+    }
+
+    .tab {
+      font-size: 0.875rem;
+      padding: 0.5rem 0.75rem;
     }
   }
 </style>
