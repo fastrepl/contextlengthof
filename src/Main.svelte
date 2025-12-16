@@ -1,45 +1,170 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import App from "./App.svelte";
   import Providers from "./Providers.svelte";
 
   let activeTab: "models" | "providers" = "models";
+  let mobileMenuOpen = false;
 
   const GITHUB_URL = "https://github.com/BerriAI/litellm";
   const DOCS_URL = "https://docs.litellm.ai";
+
+  function toggleMobileMenu() {
+    mobileMenuOpen = !mobileMenuOpen;
+  }
+
+  function closeMobileMenu() {
+    mobileMenuOpen = false;
+  }
+
+  function selectTab(tab: "models" | "providers") {
+    activeTab = tab;
+    closeMobileMenu();
+  }
+  const PROVIDERS_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/provider_endpoints_support.json";
+  const MODELS_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json";
+
+  let providerCount = 0;
+  let endpointCount = 0;
+  let providerEndpointCount = 0;
+  let modelCount = 0;
+  let statsLoading = true;
+
+  onMount(async () => {
+    try {
+      // Fetch provider data
+      const providersResponse = await fetch(PROVIDERS_URL);
+      const providersData = await providersResponse.json();
+      
+      if (providersData.providers) {
+        const providers = Object.entries(providersData.providers).map(([provider, info]: [string, any]) => ({
+          provider,
+          endpoints: info.endpoints || {}
+        }));
+        
+        providerCount = providers.length;
+        
+        // Count unique endpoints
+        const allEndpoints = new Set<string>();
+        providers.forEach(p => {
+          Object.keys(p.endpoints).forEach(e => allEndpoints.add(e));
+        });
+        endpointCount = allEndpoints.size;
+        
+        // Count provider + endpoint combinations
+        providerEndpointCount = providers.reduce((total, provider) => {
+          return total + Object.values(provider.endpoints).filter(supported => supported === true).length;
+        }, 0);
+      }
+
+      // Fetch model data
+      const modelsResponse = await fetch(MODELS_URL);
+      const modelsText = await modelsResponse.text();
+      const modelsData = JSON.parse(modelsText);
+      modelCount = Object.keys(modelsData).length;
+      
+      statsLoading = false;
+    } catch (error) {
+      console.error("Failed to load statistics:", error);
+      statsLoading = false;
+    }
+  });
 </script>
 
 <div class="app-container">
   <!-- Header -->
   <header class="header">
     <div class="header-content">
-      <div class="left-section">
-        <div class="logo-section-header">
-          <span class="logo-emoji">🚅</span>
-          <span class="logo-text-header">LiteLLM</span>
-        </div>
+      <div class="logo-section-header">
+        <span class="logo-emoji">🚅</span>
+        <span class="logo-text-header">LiteLLM</span>
+      </div>
+
+      <!-- Desktop Navigation -->
+      <div class="desktop-nav">
         <div class="tabs">
-          <button 
-            class="tab" 
+          <button
+            class="tab"
             class:active={activeTab === "models"}
-            on:click={() => activeTab = "models"}
+            on:click={() => selectTab("models")}
           >
             Models
           </button>
-          <button 
-            class="tab" 
+          <button
+            class="tab"
             class:active={activeTab === "providers"}
-            on:click={() => activeTab = "providers"}
+            on:click={() => selectTab("providers")}
           >
             AI Gateway - Endpoints & Providers
           </button>
         </div>
+        <nav class="nav-links">
+          <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" class="nav-link">Docs</a>
+          <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" class="nav-link">GitHub</a>
+        </nav>
       </div>
-      <nav class="nav-links">
-        <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" class="nav-link">Docs</a>
-        <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" class="nav-link">GitHub</a>
-      </nav>
+
+      <!-- Mobile Menu Button -->
+      <button
+        class="mobile-menu-btn"
+        on:click={toggleMobileMenu}
+        aria-label="Toggle menu"
+        aria-expanded={mobileMenuOpen}
+      >
+        <span class="hamburger" class:open={mobileMenuOpen}></span>
+      </button>
     </div>
+
+    <!-- Mobile Menu -->
+    {#if mobileMenuOpen}
+      <div class="mobile-menu">
+        <div class="mobile-tabs">
+          <button
+            class="mobile-tab"
+            class:active={activeTab === "models"}
+            on:click={() => selectTab("models")}
+          >
+            Models
+          </button>
+          <button
+            class="mobile-tab"
+            class:active={activeTab === "providers"}
+            on:click={() => selectTab("providers")}
+          >
+            AI Gateway - Endpoints & Providers
+          </button>
+        </div>
+        <div class="mobile-links">
+          <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" class="mobile-link" on:click={closeMobileMenu}>Docs</a>
+          <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" class="mobile-link" on:click={closeMobileMenu}>GitHub</a>
+        </div>
+      </div>
+    {/if}
   </header>
+
+  <!-- Statistics Section -->
+  {#if !statsLoading}
+    <div class="stats-section">
+      <div class="stats-container">
+        <div class="stat-card">
+          <div class="stat-value">{modelCount}</div>
+          <div class="stat-label">Models Supported</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{providerCount}</div>
+          <div class="stat-label">Providers</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{endpointCount}</div>
+          <div class="stat-label">Unique Endpoints</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{providerEndpointCount}</div>
+          <div class="stat-label">Provider + Endpoint Combinations</div>
+        </div>
+      </div>
+    </div>
+  {/if}
 
   <!-- Content -->
   {#if activeTab === "models"}
@@ -143,7 +268,7 @@
     justify-content: space-between;
   }
 
-  .left-section {
+  .desktop-nav {
     display: flex;
     align-items: center;
     gap: 2rem;
@@ -206,6 +331,216 @@
 
   .nav-link:hover {
     color: var(--litellm-primary);
+  }
+
+  /* Mobile Menu Button - Hidden on desktop */
+  .mobile-menu-btn {
+    display: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.5rem;
+    z-index: 101;
+  }
+
+  .hamburger {
+    display: block;
+    width: 24px;
+    height: 2px;
+    background-color: #1a1a1a;
+    position: relative;
+    transition: background-color 0.2s ease;
+  }
+
+  .hamburger::before,
+  .hamburger::after {
+    content: "";
+    position: absolute;
+    width: 24px;
+    height: 2px;
+    background-color: #1a1a1a;
+    left: 0;
+    transition: transform 0.3s ease;
+  }
+
+  .hamburger::before {
+    top: -7px;
+  }
+
+  .hamburger::after {
+    top: 7px;
+  }
+
+  /* Hamburger animation when open */
+  .hamburger.open {
+    background-color: transparent;
+  }
+
+  .hamburger.open::before {
+    transform: rotate(45deg) translate(5px, 5px);
+  }
+
+  .hamburger.open::after {
+    transform: rotate(-45deg) translate(5px, -5px);
+  }
+
+  /* Mobile Menu Panel */
+  .mobile-menu {
+    display: none;
+    background: #ffffff;
+    border-top: 1px solid #e5e7eb;
+    padding: 1rem;
+  }
+
+  .mobile-tabs {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .mobile-tab {
+    padding: 0.75rem 1rem;
+    border: none;
+    background: transparent;
+    color: #6b7280;
+    font-weight: 500;
+    font-size: 1rem;
+    cursor: pointer;
+    text-align: left;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+  }
+
+  .mobile-tab:hover {
+    background-color: #f3f4f6;
+    color: #1a1a1a;
+  }
+
+  .mobile-tab.active {
+    background-color: #f3f4f6;
+    color: #1a1a1a;
+  }
+
+  .mobile-links {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .mobile-link {
+    padding: 0.75rem 1rem;
+    color: #1a1a1a;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 1rem;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+  }
+
+  .mobile-link:hover {
+    background-color: #f3f4f6;
+    color: var(--litellm-primary);
+  }
+
+  /* Mobile Responsive */
+  @media (max-width: 768px) {
+    .header-content {
+      padding: 0.75rem 1rem;
+    }
+
+    .desktop-nav {
+      display: none;
+    }
+
+    .mobile-menu-btn {
+      display: block;
+    }
+
+    .mobile-menu {
+      display: block;
+    }
+  }
+
+  /* Statistics Section */
+  .stats-section {
+    max-width: 1400px;
+    margin: 1.5rem auto;
+    padding: 0 2rem;
+  }
+
+  .stats-container {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
+  }
+
+  .stat-card {
+    background: #fcfcfc;
+    border: 1px solid #f5f5f5;
+    border-radius: 6px;
+    padding: 0.875rem 0.75rem;
+    text-align: center;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+  }
+
+  .stat-card:hover {
+    background-color: #fafafa;
+    border-color: #f0f0f0;
+  }
+
+  .stat-value {
+    font-size: 1.375rem;
+    font-weight: 600;
+    color: #1a1a1a;
+    line-height: 1;
+    margin-bottom: 0.25rem;
+  }
+
+  .stat-label {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  /* Responsive Design */
+  @media (max-width: 1024px) {
+    .stats-container {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 640px) {
+    .stats-container {
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+    }
+
+    .stat-card {
+      padding: 1rem;
+    }
+
+    .stat-value {
+      font-size: 1.5rem;
+    }
+
+    .stat-label {
+      font-size: 0.6875rem;
+    }
+
+    .tabs {
+      width: 100%;
+      flex-wrap: wrap;
+    }
+
+    .tab {
+      font-size: 0.875rem;
+      padding: 0.5rem 0.75rem;
+    }
   }
 </style>
 
