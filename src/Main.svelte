@@ -175,40 +175,85 @@
 </div>
 
 <style>
-  /* Force light mode globally */
+  /* Theme support - respects system preference */
   :global(html) {
-    color-scheme: light only;
-    background-color: #ffffff;
+    color-scheme: light dark;
   }
 
   :global(body) {
-    background-color: #ffffff;
-    color: #1a1a1a;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+  }
+
+  /* Scrollbar styling for dark/light mode */
+  :global(*::-webkit-scrollbar) {
+    width: 10px;
+    height: 10px;
+  }
+
+  :global(*::-webkit-scrollbar-track) {
+    background: var(--bg-secondary);
+  }
+
+  :global(*::-webkit-scrollbar-thumb) {
+    background: var(--border-color-strong);
+    border-radius: 5px;
+  }
+
+  :global(*::-webkit-scrollbar-thumb:hover) {
+    background: var(--muted-color);
   }
 
   :root {
     --litellm-primary: #6366f1;
     --litellm-dark: #4f46e5;
     --litellm-purple: #8b5cf6;
-    
-    /* Force light mode colors */
-    --background-color: #ffffff;
-    --contrast: #1a1a1a;
+
+    /* Light mode colors (default) */
+    --bg-color: #ffffff;
+    --bg-secondary: #f9fafb;
+    --bg-tertiary: #f3f4f6;
+    --text-color: #1a1a1a;
+    --text-secondary: #4b5563;
     --muted-color: #6b7280;
-    --card-background-color: #ffffff;
-    --muted-border-color: #e5e7eb;
-    --table-row-stripped-background-color: #f9fafb;
+    --border-color: #e5e7eb;
+    --border-color-strong: #d1d5db;
+    --card-bg: #ffffff;
+    --code-bg: #f8f9fa;
+    --code-text: #24292f;
+    --hover-bg: #f9fafb;
+    --link-color: #2563eb;
+    --link-hover: #1d4ed8;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-color: #0f0f23;
+      --bg-secondary: #1a1a2e;
+      --bg-tertiary: #252542;
+      --text-color: #e5e5e5;
+      --text-secondary: #a1a1aa;
+      --muted-color: #9ca3af;
+      --border-color: #2d2d44;
+      --border-color-strong: #3d3d5c;
+      --card-bg: #1a1a2e;
+      --code-bg: #1e1e32;
+      --code-text: #e5e5e5;
+      --hover-bg: #252542;
+      --link-color: #60a5fa;
+      --link-hover: #93c5fd;
+    }
   }
 
   .app-container {
     min-height: 100vh;
-    background-color: #ffffff;
+    background-color: var(--bg-color);
   }
 
   /* Header */
   .header {
-    background: #ffffff;
-    border-bottom: 1px solid #e5e7eb;
+    background: var(--bg-color);
+    border-bottom: 1px solid var(--border-color);
     position: sticky;
     top: 0;
     z-index: 100;
@@ -242,7 +287,7 @@
   .logo-text-header {
     font-size: 1.25rem;
     font-weight: 700;
-    color: #1a1a1a;
+    color: var(--text-color);
   }
 
   .tabs {
@@ -255,7 +300,7 @@
     padding: 0.625rem 1rem;
     border: none;
     background: transparent;
-    color: #6b7280;
+    color: var(--muted-color);
     font-weight: 500;
     font-size: 0.9375rem;
     cursor: pointer;
@@ -263,11 +308,11 @@
   }
 
   .tab:hover {
-    color: #1a1a1a;
+    color: var(--text-color);
   }
 
   .tab.active {
-    color: #1a1a1a;
+    color: var(--text-color);
   }
 
   .nav-links {
@@ -277,7 +322,7 @@
   }
 
   .nav-link {
-    color: #1a1a1a;
+    color: var(--text-color);
     text-decoration: none;
     font-weight: 500;
     font-size: 0.9375rem;
@@ -302,7 +347,7 @@
     display: block;
     width: 24px;
     height: 2px;
-    background-color: #1a1a1a;
+    background-color: var(--text-color);
     position: relative;
     transition: background-color 0.2s ease;
   }
@@ -313,7 +358,7 @@
     position: absolute;
     width: 24px;
     height: 2px;
-    background-color: #1a1a1a;
+    background-color: var(--text-color);
     left: 0;
     transition: transform 0.3s ease;
   }
@@ -342,8 +387,8 @@
   /* Mobile Menu Panel */
   .mobile-menu {
     display: none;
-    background: #ffffff;
-    border-top: 1px solid #e5e7eb;
+    background: var(--bg-color);
+    border-top: 1px solid var(--border-color);
     padding: 1rem;
   }
 
@@ -353,14 +398,14 @@
     gap: 0.5rem;
     margin-bottom: 1rem;
     padding-bottom: 1rem;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--border-color);
   }
 
   .mobile-tab {
     padding: 0.75rem 1rem;
     border: none;
     background: transparent;
-    color: #6b7280;
+    color: var(--muted-color);
     font-weight: 500;
     font-size: 1rem;
     cursor: pointer;
@@ -370,13 +415,13 @@
   }
 
   .mobile-tab:hover {
-    background-color: #f3f4f6;
-    color: #1a1a1a;
+    background-color: var(--bg-tertiary);
+    color: var(--text-color);
   }
 
   .mobile-tab.active {
-    background-color: #f3f4f6;
-    color: #1a1a1a;
+    background-color: var(--bg-tertiary);
+    color: var(--text-color);
   }
 
   .mobile-links {
@@ -387,7 +432,7 @@
 
   .mobile-link {
     padding: 0.75rem 1rem;
-    color: #1a1a1a;
+    color: var(--text-color);
     text-decoration: none;
     font-weight: 500;
     font-size: 1rem;
@@ -396,7 +441,7 @@
   }
 
   .mobile-link:hover {
-    background-color: #f3f4f6;
+    background-color: var(--bg-tertiary);
     color: var(--litellm-primary);
   }
 
@@ -433,8 +478,8 @@
   }
 
   .stat-card {
-    background: #fcfcfc;
-    border: 1px solid #f5f5f5;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
     border-radius: 6px;
     padding: 0.875rem 0.75rem;
     text-align: center;
@@ -442,14 +487,14 @@
   }
 
   .stat-card:hover {
-    background-color: #fafafa;
-    border-color: #f0f0f0;
+    background-color: var(--hover-bg);
+    border-color: var(--border-color-strong);
   }
 
   .stat-value {
     font-size: 1.375rem;
     font-weight: 600;
-    color: #1a1a1a;
+    color: var(--text-color);
     line-height: 1;
     margin-bottom: 0.25rem;
   }
@@ -457,7 +502,7 @@
   .stat-label {
     font-size: 0.6875rem;
     font-weight: 500;
-    color: #9ca3af;
+    color: var(--muted-color);
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }

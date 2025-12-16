@@ -120,19 +120,19 @@
     gap: 0.75rem;
     padding: 0.875rem 1rem;
     font-size: 1rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--border-color-strong);
     border-radius: 8px;
-    background-color: #ffffff;
+    background-color: var(--bg-color);
     cursor: pointer;
     transition: all 0.2s ease;
     font-family: inherit;
-    color: var(--contrast);
+    color: var(--text-color);
     height: 48px;
     box-sizing: border-box;
   }
 
   .dropdown-trigger:hover {
-    border-color: #9ca3af;
+    border-color: var(--muted-color);
   }
 
   .dropdown-trigger:focus {
@@ -178,8 +178,8 @@
     top: calc(100% + 0.5rem);
     left: 0;
     right: 0;
-    background-color: #ffffff;
-    border: 1px solid var(--muted-border-color);
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
     z-index: 9999;
@@ -191,17 +191,18 @@
 
   .dropdown-search {
     padding: 0.875rem;
-    border-bottom: 1px solid var(--muted-border-color);
-    background-color: #ffffff;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--card-bg);
   }
 
   .search-input {
     width: 100%;
     padding: 0.625rem 0.875rem;
     font-size: 0.875rem;
-    border: 1px solid var(--muted-border-color);
+    border: 1px solid var(--border-color);
     border-radius: 6px;
-    background-color: #ffffff;
+    background-color: var(--bg-color);
+    color: var(--text-color);
     transition: all 0.2s ease;
   }
 
@@ -219,7 +220,7 @@
     overflow-y: auto;
     max-height: 340px;
     padding: 0.25rem 0;
-    background-color: #ffffff;
+    background-color: var(--card-bg);
   }
 
   .dropdown-option {
@@ -233,23 +234,23 @@
     cursor: pointer;
     transition: all 0.15s ease;
     text-align: left;
-    color: var(--contrast);
+    color: var(--text-color);
     font-family: inherit;
     font-size: 0.9375rem;
   }
 
   .dropdown-option:hover {
-    background-color: #f5f5f5;
+    background-color: var(--hover-bg);
   }
 
   .dropdown-option.selected {
-    background-color: rgba(99, 102, 241, 0.08);
-    color: #6366f1;
+    background-color: var(--bg-tertiary);
+    color: var(--litellm-primary);
     font-weight: 500;
   }
 
   .dropdown-option.selected:hover {
-    background-color: rgba(99, 102, 241, 0.12);
+    background-color: var(--bg-tertiary);
   }
 
   .provider-logo {
@@ -257,7 +258,7 @@
     height: 24px;
     border-radius: 50%;
     object-fit: contain;
-    background-color: white;
+    background-color: var(--bg-color);
     padding: 3px;
     flex-shrink: 0;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -267,8 +268,8 @@
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    background-color: #1a1a1a;
-    color: white;
+    background-color: var(--text-color);
+    color: var(--bg-color);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -294,12 +295,12 @@
   }
 
   .dropdown-options::-webkit-scrollbar-thumb {
-    background: #d4d4d4;
+    background: var(--border-color-strong);
     border-radius: 4px;
   }
 
   .dropdown-options::-webkit-scrollbar-thumb:hover {
-    background: #a3a3a3;
+    background: var(--muted-color);
   }
 
   @media (max-width: 768px) {
