@@ -347,7 +347,7 @@
     display: block;
     width: 24px;
     height: 2px;
-    background-color: #1a1a1a;
+    background-color: var(--text-color);
     position: relative;
     transition: background-color 0.2s ease;
   }
@@ -358,7 +358,7 @@
     position: absolute;
     width: 24px;
     height: 2px;
-    background-color: #1a1a1a;
+    background-color: var(--text-color);
     left: 0;
     transition: transform 0.3s ease;
   }
@@ -387,8 +387,8 @@
   /* Mobile Menu Panel */
   .mobile-menu {
     display: none;
-    background: #ffffff;
-    border-top: 1px solid #e5e7eb;
+    background: var(--bg-color);
+    border-top: 1px solid var(--border-color);
     padding: 1rem;
   }
 
@@ -398,14 +398,14 @@
     gap: 0.5rem;
     margin-bottom: 1rem;
     padding-bottom: 1rem;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--border-color);
   }
 
   .mobile-tab {
     padding: 0.75rem 1rem;
     border: none;
     background: transparent;
-    color: #6b7280;
+    color: var(--muted-color);
     font-weight: 500;
     font-size: 1rem;
     cursor: pointer;
@@ -415,13 +415,13 @@
   }
 
   .mobile-tab:hover {
-    background-color: #f3f4f6;
-    color: #1a1a1a;
+    background-color: var(--bg-tertiary);
+    color: var(--text-color);
   }
 
   .mobile-tab.active {
-    background-color: #f3f4f6;
-    color: #1a1a1a;
+    background-color: var(--bg-tertiary);
+    color: var(--text-color);
   }
 
   .mobile-links {
@@ -432,7 +432,7 @@
 
   .mobile-link {
     padding: 0.75rem 1rem;
-    color: #1a1a1a;
+    color: var(--text-color);
     text-decoration: none;
     font-weight: 500;
     font-size: 1rem;
@@ -441,7 +441,7 @@
   }
 
   .mobile-link:hover {
-    background-color: #f3f4f6;
+    background-color: var(--bg-tertiary);
     color: var(--litellm-primary);
   }
 
@@ -478,8 +478,8 @@
   }
 
   .stat-card {
-    background: #fcfcfc;
-    border: 1px solid #f5f5f5;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
     border-radius: 6px;
     padding: 0.875rem 0.75rem;
     text-align: center;
@@ -487,14 +487,14 @@
   }
 
   .stat-card:hover {
-    background-color: #fafafa;
-    border-color: #f0f0f0;
+    background-color: var(--hover-bg);
+    border-color: var(--border-color-strong);
   }
 
   .stat-value {
     font-size: 1.375rem;
     font-weight: 600;
-    color: #1a1a1a;
+    color: var(--text-color);
     line-height: 1;
     margin-bottom: 0.25rem;
   }
@@ -502,7 +502,7 @@
   .stat-label {
     font-size: 0.6875rem;
     font-weight: 500;
-    color: #9ca3af;
+    color: var(--muted-color);
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
