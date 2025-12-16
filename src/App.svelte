@@ -373,8 +373,8 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   }
 
   .container {
-    background-color: #ffffff;
-    color: #1a1a1a;
+    background-color: var(--bg-color);
+    color: var(--text-color);
   }
 
   /* Hero Section */
@@ -383,8 +383,8 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     padding: 5rem 2rem 4rem;
     max-width: 900px;
     margin: 0 auto;
-    background-color: #ffffff;
-    color: #1a1a1a;
+    background-color: var(--bg-color);
+    color: var(--text-color);
   }
 
   .hero-title {
@@ -392,7 +392,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     font-weight: 700;
     line-height: 1.1;
     margin: 0 0 1.25rem 0;
-    color: #1a1a1a;
+    color: var(--text-color);
     letter-spacing: -0.03em;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
   }
@@ -400,7 +400,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   .hero-subtitle {
     font-size: 1.25rem;
     line-height: 1.5;
-    color: #6b7280;
+    color: var(--muted-color);
     margin: 0 0 2rem 0;
     max-width: 700px;
     margin-left: auto;
@@ -430,27 +430,27 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   }
 
   .btn-primary {
-    background-color: #000;
-    color: #fff;
-    border-color: #000;
+    background-color: var(--text-color);
+    color: var(--bg-color);
+    border-color: var(--text-color);
   }
 
   .btn-primary:hover {
-    background-color: #333;
-    border-color: #333;
+    background-color: var(--text-secondary);
+    border-color: var(--text-secondary);
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   }
 
   .btn-secondary {
-    background-color: #fff;
-    color: var(--contrast);
-    border-color: #e5e5e5;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    border-color: var(--border-color);
   }
 
   .btn-secondary:hover {
-    border-color: #d4d4d4;
-    background-color: #fafafa;
+    border-color: var(--border-color-strong);
+    background-color: var(--hover-bg);
   }
 
   /* Search Section */
@@ -485,16 +485,17 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     width: 100%;
     padding: 0.875rem 1rem 0.875rem 3rem;
     font-size: 1rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--border-color-strong);
     border-radius: 8px;
-    background-color: #ffffff;
+    background-color: var(--bg-color);
+    color: var(--text-color);
     transition: all 0.2s ease;
     height: 48px;
     box-sizing: border-box;
   }
 
   .search-input:hover {
-    border-color: #9ca3af;
+    border-color: var(--muted-color);
   }
 
   .search-input:focus {
@@ -530,16 +531,17 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   .filter-input {
     padding: 0.875rem 1rem;
     font-size: 1rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--border-color-strong);
     border-radius: 8px;
-    background-color: #ffffff;
+    background-color: var(--bg-color);
+    color: var(--text-color);
     transition: all 0.2s ease;
     height: 48px;
     box-sizing: border-box;
   }
 
   .filter-input:hover {
-    border-color: #9ca3af;
+    border-color: var(--muted-color);
   }
 
   .filter-input:focus {
@@ -560,13 +562,14 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   }
 
   .add-model-section a {
-    color: #2563eb;
+    color: var(--link-color);
     text-decoration: none;
     font-size: 0.95rem;
   }
 
   .add-model-section a:hover {
     text-decoration: underline;
+    color: var(--link-hover);
   }
 
   /* Table styles */
@@ -580,15 +583,15 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   table {
     width: 100%;
     border-collapse: collapse;
-    background: #ffffff;
+    background: var(--card-bg);
     border-radius: 12px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-color);
   }
 
   thead {
-    background-color: #ffffff;
-    border-bottom: 1px solid #e5e7eb;
+    background-color: var(--card-bg);
+    border-bottom: 1px solid var(--border-color);
   }
 
   th {
@@ -598,27 +601,27 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: #6b7280;
-    background-color: #ffffff;
+    color: var(--muted-color);
+    background-color: var(--card-bg);
   }
 
   tbody {
-    background-color: #ffffff;
+    background-color: var(--card-bg);
   }
 
   tbody tr.model-row {
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--border-color);
     transition: background-color 0.15s ease;
     cursor: pointer;
-    background-color: #ffffff;
+    background-color: var(--card-bg);
   }
 
   tbody tr.model-row:hover {
-    background-color: #f9fafb;
+    background-color: var(--hover-bg);
   }
 
   tbody tr.model-row.expanded {
-    background-color: #f5f5f5;
+    background-color: var(--bg-tertiary);
   }
 
   tbody tr.model-row:last-child {
@@ -626,7 +629,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   }
 
   tbody tr.expanded-content {
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--border-color);
   }
 
   tbody tr.expanded-content td {
@@ -637,14 +640,14 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     padding: 0.875rem 1.5rem;
     vertical-align: middle;
     font-size: 0.9375rem;
-    background-color: #ffffff;
-    color: #1a1a1a;
+    background-color: var(--card-bg);
+    color: var(--text-color);
   }
 
   .model-name {
     font-weight: 500;
     min-width: 300px;
-    color: #1a1a1a;
+    color: var(--text-color);
   }
 
   .model-info {
@@ -673,27 +676,27 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    color: #d1d5db;
+    color: var(--muted-color);
     transition: all 0.15s ease;
     margin-left: 0.5rem;
   }
 
   .copy-button:hover {
-    background-color: #f3f4f6;
-    color: #6b7280;
+    background-color: var(--hover-bg);
+    color: var(--text-secondary);
   }
 
   .copy-button:active {
     transform: scale(0.95);
-    background-color: #e5e7eb;
+    background-color: var(--bg-tertiary);
   }
 
   .provider-avatar {
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    background-color: white;
-    color: white;
+    background-color: var(--bg-color);
+    color: var(--text-color);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -718,8 +721,8 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: #1a1a1a;
-    color: white;
+    background-color: var(--text-color);
+    color: var(--bg-color);
     font-weight: 600;
     font-size: 0.75rem;
     border-radius: 50%;
@@ -742,8 +745,8 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   }
 
   .code-block {
-    background-color: #f8f9fa;
-    border-top: 1px solid #e5e7eb;
+    background-color: var(--code-bg);
+    border-top: 1px solid var(--border-color);
     margin: 0;
     padding: 1.5rem;
     overflow-x: auto;
@@ -754,10 +757,12 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
     font-size: 0.875rem;
     line-height: 1.6;
+    background-color: var(--code-bg) !important;
   }
 
   .code-block code {
-    color: #24292f;
+    color: var(--code-text) !important;
+    background-color: var(--code-bg) !important;
     display: block;
   }
 
