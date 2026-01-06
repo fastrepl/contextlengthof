@@ -38,32 +38,35 @@
     isSubmitting = true;
     submitError = "";
 
+    const payload = {
+      type: requestType,
+      request: request,
+      docsLink: docsLink,
+      email: email,
+      timestamp: new Date().toISOString(),
+    };
+
+    console.log("Submitting to Zapier:", payload);
+
     try {
       const response = await fetch(ZAPIER_WEBHOOK_URL, {
         method: "POST",
+        mode: "no-cors",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          type: requestType,
-          request: request,
-          docsLink: docsLink,
-          email: email,
-          timestamp: new Date().toISOString(),
-        }),
+        body: JSON.stringify(payload),
       });
 
-      if (response.ok) {
-        submitSuccess = true;
-        setTimeout(() => {
-          closeModal();
-        }, 2500);
-      } else {
-        submitError = "Failed to submit request. Please try again.";
-      }
+      // With no-cors mode, we can't read the response, so we assume success
+      console.log("Zapier webhook response:", response);
+      submitSuccess = true;
+      setTimeout(() => {
+        closeModal();
+      }, 2500);
     } catch (error) {
-      submitError = "Network error. Please check your connection and try again.";
       console.error("Submission error:", error);
+      submitError = "Failed to submit. Error: " + (error instanceof Error ? error.message : String(error));
     } finally {
       isSubmitting = false;
     }
