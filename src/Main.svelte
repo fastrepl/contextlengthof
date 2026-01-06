@@ -2,9 +2,11 @@
   import { onMount } from "svelte";
   import App from "./App.svelte";
   import Providers from "./Providers.svelte";
+  import RequestForm from "./RequestForm.svelte";
 
   let activeTab: "models" | "providers" = "models";
   let mobileMenuOpen = false;
+  let requestForm: RequestForm;
 
   const GITHUB_URL = "https://github.com/BerriAI/litellm";
   const DOCS_URL = "https://docs.litellm.ai";
@@ -103,6 +105,7 @@
           <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" class="nav-link">GitHub</a>
         </nav>
       </div>
+<<<<<<< HEAD
 
       <!-- Mobile Menu Button -->
       <button
@@ -113,6 +116,19 @@
       >
         <span class="hamburger" class:open={mobileMenuOpen}></span>
       </button>
+=======
+      <nav class="nav-links">
+        <button class="request-button" on:click={() => requestForm.openModal()}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="8" y1="3" x2="8" y2="13"></line>
+            <line x1="3" y1="8" x2="13" y2="8"></line>
+          </svg>
+          Request Model, Provider, Endpoint
+        </button>
+        <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" class="nav-link">Docs</a>
+        <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" class="nav-link">GitHub</a>
+      </nav>
+>>>>>>> 6c66562 (add new form)
     </div>
 
     <!-- Mobile Menu -->
@@ -172,6 +188,9 @@
   {:else}
     <Providers />
   {/if}
+
+  <!-- Request Form Modal -->
+  <RequestForm bind:this={requestForm} />
 </div>
 
 <style>
@@ -319,6 +338,33 @@
     display: flex;
     gap: 1.5rem;
     align-items: center;
+  }
+
+  .request-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem;
+    background-color: #000;
+    color: white;
+    border: none;
+    border-radius: 100px;
+    font-weight: 500;
+    font-size: 0.9375rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .request-button:hover {
+    background-color: #333;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+
+  .request-button svg {
+    width: 16px;
+    height: 16px;
   }
 
   .nav-link {
@@ -540,6 +586,16 @@
     .tab {
       font-size: 0.875rem;
       padding: 0.5rem 0.75rem;
+    }
+
+    .nav-links {
+      flex-wrap: wrap;
+    }
+
+    .request-button {
+      font-size: 0.8125rem;
+      padding: 0.5rem 0.75rem;
+      white-space: nowrap;
     }
   }
 </style>
