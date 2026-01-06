@@ -553,7 +553,7 @@
     color: rgba(255, 255, 255, 0.75) !important;
   }
 
-  .form-group input,
+  .form-group input:not([type="checkbox"]),
   .form-group textarea {
     width: 100%;
     padding: 0.875rem 1rem;
@@ -574,25 +574,25 @@
     line-height: 1.5;
   }
 
-  .form-group input:hover:not(:disabled),
+  .form-group input:not([type="checkbox"]):hover:not(:disabled),
   .form-group textarea:hover:not(:disabled) {
     border-color: var(--muted-color, #9ca3af);
   }
 
-  .form-group input:focus,
+  .form-group input:not([type="checkbox"]):focus,
   .form-group textarea:focus {
     outline: none;
     border-color: #000;
     box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
   }
 
-  .form-group input::placeholder,
+  .form-group input:not([type="checkbox"])::placeholder,
   .form-group textarea::placeholder {
     color: var(--muted-color, #9ca3af) !important;
     opacity: 0.7;
   }
 
-  .form-group input:disabled,
+  .form-group input:not([type="checkbox"]):disabled,
   .form-group textarea:disabled {
     background-color: var(--bg-secondary, #f9fafb);
     cursor: not-allowed;
@@ -605,18 +605,30 @@
     gap: 0.75rem;
     cursor: pointer;
     font-weight: 400 !important;
+    padding: 0;
+    margin-bottom: 0;
   }
 
   .checkbox-label input[type="checkbox"] {
-    width: auto;
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    min-height: 18px;
     margin-top: 0.25rem;
     cursor: pointer;
     flex-shrink: 0;
+    padding: 0;
+    accent-color: #000;
+  }
+
+  .checkbox-label input[type="checkbox"]:disabled {
+    cursor: not-allowed;
   }
 
   .checkbox-label span {
     flex: 1;
     line-height: 1.5;
+    color: var(--text-color, #1a1a1a);
   }
 
   .form-actions {
