@@ -105,7 +105,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <div>
-          <h2>Request Support</h2>
+          <h2>Request New Model, Provider, Endpoint</h2>
           <p class="subtitle">Help us prioritize what to add next. We'll notify you when it's live!</p>
         </div>
         <button class="close-button" on:click={closeModal} type="button">
