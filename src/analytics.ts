@@ -41,12 +41,21 @@ export function trackSearch(query: string, provider?: string, resultsCount?: num
 }
 
 // Track model/provider/endpoint request
-export function trackRequest(type: 'provider' | 'endpoint' | 'model', request: string, email: string, docsLink?: string) {
+export function trackRequest(
+  type: 'provider' | 'endpoint' | 'model', 
+  request: string, 
+  email: string, 
+  docsLink?: string,
+  deadline?: string,
+  willingToCall?: boolean
+) {
   if (MIXPANEL_TOKEN) {
     mixpanel.track('Request Submitted', {
       request_type: type,
       request_description: request,
       has_docs_link: !!docsLink,
+      has_deadline: !!deadline,
+      willing_to_call: willingToCall || false,
       email_domain: email.split('@')[1] || 'unknown',
       timestamp: new Date().toISOString()
     });

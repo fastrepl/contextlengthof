@@ -6,6 +6,8 @@
   let request = "";
   let docsLink = "";
   let email = "";
+  let deadline = "";
+  let willingToCall = false;
   let isSubmitting = false;
   let submitSuccess = false;
   let submitError = "";
@@ -31,6 +33,8 @@
     request = "";
     docsLink = "";
     email = "";
+    deadline = "";
+    willingToCall = false;
     submitSuccess = false;
     submitError = "";
     // Remove ?request=true from URL when closing
@@ -55,6 +59,8 @@
       request: request,
       docsLink: docsLink,
       email: email,
+      deadline: deadline,
+      willingToCall: willingToCall,
       timestamp: new Date().toISOString(),
     };
 
@@ -74,7 +80,14 @@
       console.log("Zapier webhook response:", response);
       
       // Track successful request submission
-      trackRequest(requestType as "provider" | "endpoint" | "model", request, email, docsLink);
+      trackRequest(
+        requestType as "provider" | "endpoint" | "model", 
+        request, 
+        email, 
+        docsLink,
+        deadline,
+        willingToCall
+      );
       
       submitSuccess = true;
       setTimeout(() => {
@@ -250,6 +263,29 @@
               disabled={isSubmitting}
             />
             <span class="hint">We'll let you know when it's ready!</span>
+          </div>
+
+          <div class="form-group">
+            <label for="deadline">
+              When do you need this by? <span class="optional">(optional)</span>
+            </label>
+            <input
+              id="deadline"
+              type="date"
+              bind:value={deadline}
+              disabled={isSubmitting}
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input
+                type="checkbox"
+                bind:checked={willingToCall}
+                disabled={isSubmitting}
+              />
+              <span>Would you be willing to get on a call and provide feedback on this implementation? <span class="optional">(optional)</span></span>
+            </label>
           </div>
 
           {#if submitError}
@@ -561,6 +597,26 @@
     background-color: var(--bg-secondary, #f9fafb);
     cursor: not-allowed;
     opacity: 0.6;
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    cursor: pointer;
+    font-weight: 400 !important;
+  }
+
+  .checkbox-label input[type="checkbox"] {
+    width: auto;
+    margin-top: 0.25rem;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .checkbox-label span {
+    flex: 1;
+    line-height: 1.5;
   }
 
   .form-actions {
