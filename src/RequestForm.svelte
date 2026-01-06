@@ -8,8 +8,8 @@
   let submitSuccess = false;
   let submitError = "";
 
-  // You'll need to replace this with your actual Zapier webhook URL
-  const ZAPIER_WEBHOOK_URL = "YOUR_ZAPIER_WEBHOOK_URL_HERE";
+  // Zapier webhook URL
+  const ZAPIER_WEBHOOK_URL = "https://hooks.zapier.com/hooks/catch/16331268/uwas519/";
 
   export function openModal() {
     showModal = true;
