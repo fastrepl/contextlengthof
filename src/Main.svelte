@@ -33,6 +33,12 @@
   let statsLoading = true;
 
   onMount(async () => {
+    // Check if URL has ?request=true to auto-open the form
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('request') === 'true') {
+      requestForm?.openModal();
+    }
+
     try {
       // Fetch provider data
       const providersResponse = await fetch(PROVIDERS_URL);

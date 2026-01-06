@@ -15,6 +15,10 @@
     showModal = true;
     submitSuccess = false;
     submitError = "";
+    // Update URL to include ?request=true for shareable link
+    const url = new URL(window.location.href);
+    url.searchParams.set('request', 'true');
+    window.history.pushState({}, '', url);
   }
 
   function closeModal() {
@@ -25,6 +29,10 @@
     email = "";
     submitSuccess = false;
     submitError = "";
+    // Remove ?request=true from URL when closing
+    const url = new URL(window.location.href);
+    url.searchParams.delete('request');
+    window.history.pushState({}, '', url);
   }
 
   async function handleSubmit(e: Event) {
@@ -288,7 +296,7 @@
   }
 
   .modal-content {
-    background: #ffffff;
+    background: var(--bg-color, #ffffff);
     border-radius: 16px;
     max-width: 900px;
     width: 100%;
