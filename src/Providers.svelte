@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { getProviderInitial, getProviderLogo } from "./providers";
+  import { trackSearch } from "./analytics";
 
   type ProviderEndpoint = {
     provider: string;
@@ -65,6 +66,22 @@
     };
   });
 
+  // Debounce function
+  const debounce = (callback: Function, wait = 500) => {
+    let timeout: ReturnType<typeof setTimeout>;
+    return (...args: any[]) => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => callback(...args), wait);
+    };
+  };
+
+  // Debounced search tracking
+  const trackSearchDebounced = debounce((query: string, mode: string, resultsCount: number) => {
+    if (query) {
+      trackSearch(query, mode, resultsCount);
+    }
+  }, 1000);
+
   // Reset selected filter when view mode changes
   $: if (viewMode) {
     selectedFilter = "";
@@ -102,6 +119,10 @@
 
     filteredProviders = tempProviders;
     filteredEndpoints = tempEndpoints;
+
+    // Track search event (debounced)
+    const resultsCount = viewMode === "provider" ? tempProviders.length : tempEndpoints.length;
+    trackSearchDebounced(searchQuery, viewMode, resultsCount);
   }
 
   function formatEndpointName(endpoint: string): string {
