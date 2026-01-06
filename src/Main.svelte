@@ -101,11 +101,17 @@
           </button>
         </div>
         <nav class="nav-links">
+          <button class="request-button" on:click={() => requestForm.openModal()}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="8" y1="3" x2="8" y2="13"></line>
+              <line x1="3" y1="8" x2="13" y2="8"></line>
+            </svg>
+            Request Model, Provider, Endpoint
+          </button>
           <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" class="nav-link">Docs</a>
           <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" class="nav-link">GitHub</a>
         </nav>
       </div>
-<<<<<<< HEAD
 
       <!-- Mobile Menu Button -->
       <button
@@ -116,19 +122,6 @@
       >
         <span class="hamburger" class:open={mobileMenuOpen}></span>
       </button>
-=======
-      <nav class="nav-links">
-        <button class="request-button" on:click={() => requestForm.openModal()}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="8" y1="3" x2="8" y2="13"></line>
-            <line x1="3" y1="8" x2="13" y2="8"></line>
-          </svg>
-          Request Model, Provider, Endpoint
-        </button>
-        <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" class="nav-link">Docs</a>
-        <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" class="nav-link">GitHub</a>
-      </nav>
->>>>>>> 6c66562 (add new form)
     </div>
 
     <!-- Mobile Menu -->
