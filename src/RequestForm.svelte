@@ -116,7 +116,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <div>
-          <h2>Request New Model, Provider, Endpoint</h2>
+          <h2>Request Support</h2>
           <p class="subtitle">Help us prioritize what to add next. We'll notify you when it's live!</p>
         </div>
         <button class="close-button" on:click={closeModal} type="button">
@@ -270,6 +270,27 @@
 {/if}
 
 <style>
+  /* Ensure dark mode variables are available */
+  @media (prefers-color-scheme: dark) {
+    .modal-content {
+      --bg-color: #1a1a2e;
+      --bg-secondary: #252542;
+      --bg-tertiary: #2d2d44;
+      --text-color: #e5e5e5;
+      --text-secondary: #a1a1aa;
+      --muted-color: #9ca3af;
+      --border-color: #2d2d44;
+      --border-color-strong: #3d3d5c;
+      --card-bg: #1a1a2e;
+      --input-text: #ffffff;
+    }
+  }
+
+  /* Light mode input text */
+  .modal-content {
+    --input-text: #1a1a1a;
+  }
+
   .modal-backdrop {
     position: fixed;
     top: 0;
@@ -322,21 +343,21 @@
     align-items: flex-start;
     justify-content: space-between;
     padding: 2rem 2rem 1rem;
-    border-bottom: 1px solid #f3f4f6;
+    border-bottom: 1px solid var(--border-color, #f3f4f6);
   }
 
   .modal-header h2 {
     margin: 0 0 0.5rem 0;
     font-size: 1.75rem;
     font-weight: 700;
-    color: #1a1a1a;
+    color: var(--text-color, #1a1a1a);
     line-height: 1.2;
   }
 
   .subtitle {
     margin: 0;
     font-size: 0.9375rem;
-    color: #6b7280;
+    color: var(--muted-color, #6b7280);
     line-height: 1.5;
   }
 
@@ -345,7 +366,7 @@
     border: none;
     cursor: pointer;
     padding: 0.5rem;
-    color: #9ca3af;
+    color: var(--muted-color, #9ca3af);
     transition: color 0.2s ease;
     display: flex;
     align-items: center;
@@ -354,8 +375,8 @@
   }
 
   .close-button:hover {
-    color: #1a1a1a;
-    background-color: #f3f4f6;
+    color: var(--text-color, #1a1a1a);
+    background-color: var(--bg-tertiary, #f3f4f6);
   }
 
   form {
@@ -371,7 +392,7 @@
     margin-bottom: 0.625rem;
     font-weight: 600;
     font-size: 0.9375rem;
-    color: #1a1a1a;
+    color: var(--text-color, #1a1a1a);
   }
 
   .required {
@@ -381,7 +402,7 @@
 
   .optional {
     font-weight: 400;
-    color: #9ca3af;
+    color: var(--muted-color, #9ca3af);
     font-size: 0.875rem;
   }
 
@@ -389,12 +410,12 @@
     display: block;
     margin-top: 0.5rem;
     font-size: 0.8125rem;
-    color: #6b7280;
+    color: var(--muted-color, #6b7280);
   }
 
   .examples-box {
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
+    background: var(--bg-secondary, #f9fafb);
+    border: 1px solid var(--border-color, #e5e7eb);
     border-radius: 8px;
     padding: 1rem 1.25rem;
     margin-bottom: 0.75rem;
@@ -403,7 +424,7 @@
   .example-title {
     font-size: 0.8125rem;
     font-weight: 600;
-    color: #6b7280;
+    color: var(--muted-color, #6b7280);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin-bottom: 0.5rem;
@@ -417,7 +438,7 @@
 
   .examples-box li {
     font-size: 0.875rem;
-    color: #4b5563;
+    color: var(--text-secondary, #4b5563);
     line-height: 1.6;
     margin-bottom: 0.375rem;
   }
@@ -438,8 +459,8 @@
     align-items: center;
     justify-content: center;
     padding: 1rem 0.75rem;
-    background: #ffffff;
-    border: 2px solid #d1d5db;
+    background: var(--card-bg, #ffffff);
+    border: 2px solid var(--border-color-strong, #d1d5db);
     border-radius: 8px;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -448,8 +469,8 @@
   }
 
   .type-button:hover:not(:disabled):not(.selected) {
-    border-color: #9ca3af;
-    background: #fafafa;
+    border-color: var(--muted-color, #9ca3af);
+    background: var(--bg-secondary, #fafafa);
   }
 
   .type-button:focus {
@@ -470,7 +491,7 @@
   .type-label {
     font-size: 0.9375rem;
     font-weight: 600;
-    color: #1a1a1a;
+    color: var(--text-color, #1a1a1a);
     margin-bottom: 0.375rem;
   }
 
@@ -480,7 +501,7 @@
 
   .type-example {
     font-size: 0.75rem;
-    color: #6b7280;
+    color: var(--muted-color, #6b7280);
     line-height: 1.4;
   }
 
@@ -492,13 +513,14 @@
   .form-group textarea {
     width: 100%;
     padding: 0.875rem 1rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--border-color-strong, #d1d5db);
     border-radius: 8px;
     font-size: 1rem;
     font-family: inherit;
     transition: all 0.2s ease;
     box-sizing: border-box;
-    background: #ffffff;
+    background: var(--card-bg, #ffffff);
+    color: var(--input-text, #1a1a1a) !important;
   }
 
   .form-group textarea {
@@ -510,7 +532,7 @@
 
   .form-group input:hover:not(:disabled),
   .form-group textarea:hover:not(:disabled) {
-    border-color: #9ca3af;
+    border-color: var(--muted-color, #9ca3af);
   }
 
   .form-group input:focus,
@@ -522,12 +544,12 @@
 
   .form-group input::placeholder,
   .form-group textarea::placeholder {
-    color: #9ca3af;
+    color: var(--muted-color, #9ca3af);
   }
 
   .form-group input:disabled,
   .form-group textarea:disabled {
-    background-color: #f9fafb;
+    background-color: var(--bg-secondary, #f9fafb);
     cursor: not-allowed;
     opacity: 0.6;
   }
@@ -538,7 +560,7 @@
     justify-content: flex-end;
     margin-top: 2rem;
     padding-top: 1.5rem;
-    border-top: 1px solid #f3f4f6;
+    border-top: 1px solid var(--border-color, #f3f4f6);
   }
 
   .btn {
@@ -573,14 +595,14 @@
 
   .btn-secondary {
     background-color: transparent;
-    color: #6b7280;
-    border: 2px solid #e5e7eb;
+    color: var(--muted-color, #6b7280);
+    border: 2px solid var(--border-color, #e5e7eb);
   }
 
   .btn-secondary:hover:not(:disabled) {
-    background-color: #f9fafb;
-    border-color: #d1d5db;
-    color: #1a1a1a;
+    background-color: var(--bg-secondary, #f9fafb);
+    border-color: var(--border-color-strong, #d1d5db);
+    color: var(--text-color, #1a1a1a);
   }
 
   .spinner {
@@ -629,13 +651,13 @@
 
   .success-message p {
     margin: 0;
-    color: #6b7280;
+    color: var(--muted-color, #6b7280);
     font-size: 1.0625rem;
     line-height: 1.6;
   }
 
   .success-message strong {
-    color: #1a1a1a;
+    color: var(--text-color, #1a1a1a);
     font-weight: 600;
   }
 

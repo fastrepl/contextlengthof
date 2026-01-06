@@ -133,6 +133,13 @@
     <!-- Mobile Menu -->
     {#if mobileMenuOpen}
       <div class="mobile-menu">
+        <button class="mobile-request-button" on:click={() => { requestForm.openModal(); closeMobileMenu(); }}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="8" y1="3" x2="8" y2="13"></line>
+            <line x1="3" y1="8" x2="13" y2="8"></line>
+          </svg>
+          Request Model, Provider, Endpoint
+        </button>
         <div class="mobile-tabs">
           <button
             class="mobile-tab"
@@ -435,6 +442,33 @@
     background: var(--bg-color);
     border-top: 1px solid var(--border-color);
     padding: 1rem;
+  }
+
+  .mobile-request-button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.875rem 1rem;
+    background-color: #000;
+    color: white;
+    border: none;
+    border-radius: 100px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-bottom: 1rem;
+  }
+
+  .mobile-request-button:hover {
+    background-color: #333;
+  }
+
+  .mobile-request-button svg {
+    width: 16px;
+    height: 16px;
   }
 
   .mobile-tabs {
