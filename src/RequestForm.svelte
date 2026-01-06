@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { trackRequest, trackRequestFormOpened } from "./analytics";
+
   let showModal = false;
   let requestType: "provider" | "endpoint" | "model" | "" = "";
   let request = "";
@@ -19,6 +21,8 @@
     const url = new URL(window.location.href);
     url.searchParams.set('request', 'true');
     window.history.pushState({}, '', url);
+    // Track form opened
+    trackRequestFormOpened();
   }
 
   function closeModal() {
@@ -68,6 +72,10 @@
 
       // With no-cors mode, we can't read the response, so we assume success
       console.log("Zapier webhook response:", response);
+      
+      // Track successful request submission
+      trackRequest(requestType as "provider" | "endpoint" | "model", request, email, docsLink);
+      
       submitSuccess = true;
       setTimeout(() => {
         closeModal();
@@ -270,6 +278,11 @@
 {/if}
 
 <style>
+  /* Light mode input text */
+  .modal-content {
+    --input-text: #1a1a1a;
+  }
+
   /* Ensure dark mode variables are available */
   @media (prefers-color-scheme: dark) {
     .modal-content {
@@ -281,14 +294,9 @@
       --muted-color: #9ca3af;
       --border-color: #2d2d44;
       --border-color-strong: #3d3d5c;
-      --card-bg: #1a1a2e;
+      --card-bg: #252542;
       --input-text: #ffffff;
     }
-  }
-
-  /* Light mode input text */
-  .modal-content {
-    --input-text: #1a1a1a;
   }
 
   .modal-backdrop {
@@ -544,7 +552,8 @@
 
   .form-group input::placeholder,
   .form-group textarea::placeholder {
-    color: var(--muted-color, #9ca3af);
+    color: var(--muted-color, #9ca3af) !important;
+    opacity: 0.7;
   }
 
   .form-group input:disabled,

@@ -5,6 +5,7 @@
   import Fuse from "fuse.js";
   import { getProviderInitial, getProviderLogo } from "./providers";
   import ProviderDropdown from "./ProviderDropdown.svelte";
+  import { trackSearch } from "./analytics";
 
   type Item = {
     name: string;
@@ -85,6 +86,13 @@
       timeout = setTimeout(() => callback(...args), wait);
     };
   };
+
+  // Debounced search tracking
+  const trackSearchDebounced = debounce((query: string, provider: string, resultsCount: number) => {
+    if (query) {
+      trackSearch(query, provider, resultsCount);
+    }
+  }, 1000);
 
   const getIssueUrlForAdd = (query: string) => {
     const q = encodeURIComponent(query);
@@ -196,6 +204,9 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
       // Map the filtered results to the ResultItem format
       results = filteredResults.map((item, refIndex) => ({ item, refIndex }));
       loading = false;
+
+      // Track search event (debounced)
+      trackSearchDebounced(query, selectedProvider, results.length);
     }
   }
 </script>

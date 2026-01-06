@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "fuse.js": "^7.0.0",
+    "mixpanel-browser": "^2.73.0",
     "svelte-typewriter": "^3.2.3"
   }
 }

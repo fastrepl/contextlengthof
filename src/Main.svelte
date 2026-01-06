@@ -3,6 +3,7 @@
   import App from "./App.svelte";
   import Providers from "./Providers.svelte";
   import RequestForm from "./RequestForm.svelte";
+  import { initAnalytics, trackPageView, trackTabChange } from "./analytics";
 
   let activeTab: "models" | "providers" = "models";
   let mobileMenuOpen = false;
@@ -22,6 +23,7 @@
   function selectTab(tab: "models" | "providers") {
     activeTab = tab;
     closeMobileMenu();
+    trackTabChange(tab);
   }
   const PROVIDERS_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/provider_endpoints_support.json";
   const MODELS_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json";
@@ -33,6 +35,10 @@
   let statsLoading = true;
 
   onMount(async () => {
+    // Initialize analytics
+    initAnalytics();
+    trackPageView('Home');
+
     // Check if URL has ?request=true to auto-open the form
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('request') === 'true') {
