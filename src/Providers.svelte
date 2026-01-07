@@ -12,8 +12,17 @@
     };
   };
 
+  type EndpointMetadata = {
+    display_name: string;
+    leftnav_label: string;
+    url: string;
+    docs_label: string;
+    bridges_to_chat_completion?: boolean;
+  };
+
   let loading = true;
   let providers: ProviderEndpoint[] = [];
+  let endpointsMetadata: { [key: string]: EndpointMetadata } = {};
   let searchQuery = "";
   let selectedEndpoint = "";
   let allEndpoints: string[] = [];
@@ -27,6 +36,11 @@
     try {
       const response = await fetch(PROVIDERS_URL);
       const data = await response.json();
+      
+      // Extract endpoints metadata
+      if (data.endpoints) {
+        endpointsMetadata = data.endpoints;
+      }
       
       // Transform the data into our format
       if (data.providers) {
@@ -83,61 +97,74 @@
   }, 1000);
 
   function formatEndpointName(endpoint: string): string {
-    // Convert snake_case to /path format
+    // Use leftnav_label from metadata if available, otherwise convert snake_case to /path format
+    if (endpointsMetadata[endpoint]?.leftnav_label) {
+      return endpointsMetadata[endpoint].leftnav_label;
+    }
     const formatted = endpoint.replace(/_/g, "/");
     return `/${formatted}`;
   }
 
   function formatEndpointTitle(endpoint: string): string {
-    // Convert snake_case to Title Case
+    // Use display_name from metadata if available, otherwise convert snake_case to Title Case
+    if (endpointsMetadata[endpoint]?.display_name) {
+      return endpointsMetadata[endpoint].display_name;
+    }
     return endpoint
       .split('_')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ');
   }
 
-  // Filter endpoints based on search
+  function getEndpointUrl(endpoint: string): string {
+    return endpointsMetadata[endpoint]?.url || DOCS_URL;
+  }
+
+  // Filter endpoints based on search query - show only endpoints supported by matching providers
   $: {
     if (searchQuery.trim() === "") {
       filteredEndpoints = allEndpoints;
     } else {
       const query = searchQuery.toLowerCase();
       
-      // Filter endpoints by name
-      const matchingEndpoints = allEndpoints.filter((endpoint) =>
-        endpoint.toLowerCase().includes(query) ||
-        formatEndpointName(endpoint).toLowerCase().includes(query) ||
-        formatEndpointTitle(endpoint).toLowerCase().includes(query)
+      // Find providers that match the search query
+      const matchingProviders = providers.filter(p =>
+        p.provider.toLowerCase().includes(query) ||
+        p.display_name.toLowerCase().includes(query)
       );
       
-      // Also include endpoints if any provider name matches
-      const endpointsWithMatchingProviders = new Set<string>();
-      providers.forEach(p => {
-        const providerMatches = 
-          p.provider.toLowerCase().includes(query) ||
-          p.display_name.toLowerCase().includes(query);
-        
-        if (providerMatches) {
-          Object.keys(p.endpoints).forEach(endpoint => {
-            if (p.endpoints[endpoint] === true) {
-              endpointsWithMatchingProviders.add(endpoint);
-            }
-          });
-        }
+      // Collect all endpoints supported by matching providers
+      const supportedEndpoints = new Set<string>();
+      matchingProviders.forEach(p => {
+        Object.keys(p.endpoints).forEach(endpoint => {
+          if (p.endpoints[endpoint] === true) {
+            supportedEndpoints.add(endpoint);
+          }
+        });
       });
       
-      // Combine both sets of endpoints
-      const combinedEndpoints = new Set([...matchingEndpoints, ...endpointsWithMatchingProviders]);
-      filteredEndpoints = allEndpoints.filter(e => combinedEndpoints.has(e));
+      // Filter to only show endpoints that are supported by matching providers
+      filteredEndpoints = allEndpoints.filter(e => supportedEndpoints.has(e));
     }
   }
 
   // Filter providers that support the selected endpoint AND match search query
   $: {
     if (selectedEndpoint) {
-      let providersList = providers.filter(p => p.endpoints[selectedEndpoint] === true);
+      // Check if this endpoint bridges to chat_completions
+      const bridgesToChatCompletion = endpointsMetadata[selectedEndpoint]?.bridges_to_chat_completion || false;
       
-      // Further filter by search query if present
+      let providersList = providers.filter(p => {
+        // Include if provider directly supports this endpoint
+        const directSupport = p.endpoints[selectedEndpoint] === true;
+        
+        // If endpoint bridges to chat_completions, also include providers that support chat_completions
+        const bridgedSupport = bridgesToChatCompletion && p.endpoints['chat_completions'] === true;
+        
+        return directSupport || bridgedSupport;
+      });
+      
+      // Filter by search query - only providers
       if (searchQuery.trim() !== "") {
         const query = searchQuery.toLowerCase();
         providersList = providersList.filter(p =>
@@ -155,7 +182,13 @@
 
   // Count how many providers support each endpoint
   function getProviderCount(endpoint: string): number {
-    return providers.filter(p => p.endpoints[endpoint] === true).length;
+    const bridgesToChatCompletion = endpointsMetadata[endpoint]?.bridges_to_chat_completion || false;
+    
+    return providers.filter(p => {
+      const directSupport = p.endpoints[endpoint] === true;
+      const bridgedSupport = bridgesToChatCompletion && p.endpoints['chat_completions'] === true;
+      return directSupport || bridgedSupport;
+    }).length;
   }
 
 </script>
@@ -179,7 +212,7 @@
         bind:value={searchQuery}
         type="text"
         autocomplete="off"
-        placeholder="Search endpoints or providers..."
+        placeholder="Search providers..."
         class="search-input"
       />
     </div>
@@ -215,7 +248,16 @@
       <section class="content">
         {#if selectedEndpoint}
           <div class="content-header">
-            <h2 class="endpoint-title">{formatEndpointTitle(selectedEndpoint)}</h2>
+            <h2 class="endpoint-title">
+              {formatEndpointTitle(selectedEndpoint)}
+              <a href={getEndpointUrl(selectedEndpoint)} target="_blank" rel="noopener noreferrer" class="endpoint-docs-link" title="View documentation">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                  <polyline points="15 3 21 3 21 9"></polyline>
+                  <line x1="10" y1="14" x2="21" y2="3"></line>
+                </svg>
+              </a>
+            </h2>
             <p class="endpoint-subtitle">
               {filteredProviders.length} {filteredProviders.length === 1 ? 'provider' : 'providers'} support {formatEndpointName(selectedEndpoint)}
             </p>
@@ -492,6 +534,30 @@
     font-weight: 700;
     color: var(--text-color);
     margin: 0 0 0.5rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .endpoint-docs-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--link-color);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    opacity: 0.7;
+  }
+
+  .endpoint-docs-link:hover {
+    opacity: 1;
+    color: var(--link-hover);
+    transform: translateY(-1px);
+  }
+
+  .endpoint-docs-link svg {
+    width: 24px;
+    height: 24px;
   }
 
   .endpoint-subtitle {
