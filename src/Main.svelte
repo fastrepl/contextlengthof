@@ -2,15 +2,33 @@
   import { onMount } from "svelte";
   import App from "./App.svelte";
   import Providers from "./Providers.svelte";
+  import Cookbook from "./Cookbook.svelte";
   import RequestForm from "./RequestForm.svelte";
   import { initAnalytics, trackPageView, trackTabChange } from "./analytics";
 
-  let activeTab: "models" | "providers" = "models";
+  let activeTab: "models" | "providers" | "cookbook" = "models";
   let mobileMenuOpen = false;
   let requestForm: RequestForm;
 
   const GITHUB_URL = "https://github.com/BerriAI/litellm";
   const DOCS_URL = "https://docs.litellm.ai";
+
+  // Map URL paths to tab names
+  function getTabFromPath(path: string): "models" | "providers" | "cookbook" {
+    if (path === "/providers" || path === "/providers/") {
+      return "providers";
+    } else if (path === "/cookbook" || path === "/cookbook/") {
+      return "cookbook";
+    }
+    return "models";
+  }
+
+  // Get path from tab name
+  function getPathFromTab(tab: "models" | "providers" | "cookbook"): string {
+    if (tab === "providers") return "/providers";
+    if (tab === "cookbook") return "/cookbook";
+    return "/";
+  }
 
   function toggleMobileMenu() {
     mobileMenuOpen = !mobileMenuOpen;
@@ -20,10 +38,22 @@
     mobileMenuOpen = false;
   }
 
-  function selectTab(tab: "models" | "providers") {
+  function selectTab(tab: "models" | "providers" | "cookbook", updateUrl = true) {
     activeTab = tab;
     closeMobileMenu();
     trackTabChange(tab);
+    
+    // Update URL without page reload
+    if (updateUrl) {
+      const path = getPathFromTab(tab);
+      window.history.pushState({ tab }, "", path);
+    }
+  }
+
+  // Handle browser back/forward buttons
+  function handlePopState(event: PopStateEvent) {
+    const tab = event.state?.tab || getTabFromPath(window.location.pathname);
+    selectTab(tab, false);
   }
   const PROVIDERS_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/provider_endpoints_support.json";
   const MODELS_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json";
@@ -38,6 +68,16 @@
     // Initialize analytics
     initAnalytics();
     trackPageView('Home');
+
+    // Set initial tab based on URL
+    const initialTab = getTabFromPath(window.location.pathname);
+    activeTab = initialTab;
+    
+    // Set initial history state
+    window.history.replaceState({ tab: initialTab }, "", window.location.pathname);
+    
+    // Listen for browser back/forward navigation
+    window.addEventListener("popstate", handlePopState);
 
     // Check if URL has ?request=true to auto-open the form
     const urlParams = new URLSearchParams(window.location.search);
@@ -82,6 +122,11 @@
       console.error("Failed to load statistics:", error);
       statsLoading = false;
     }
+
+    // Cleanup event listener on component destroy
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
   });
 </script>
 
@@ -109,7 +154,14 @@
             class:active={activeTab === "providers"}
             on:click={() => selectTab("providers")}
           >
-            AI Gateway - Endpoints & Providers
+            Endpoints & Providers
+          </button>
+          <button
+            class="tab"
+            class:active={activeTab === "cookbook"}
+            on:click={() => selectTab("cookbook")}
+          >
+            Cookbook
           </button>
         </div>
         <nav class="nav-links">
@@ -161,6 +213,13 @@
           >
             AI Gateway - Endpoints & Providers
           </button>
+          <button
+            class="mobile-tab"
+            class:active={activeTab === "cookbook"}
+            on:click={() => selectTab("cookbook")}
+          >
+            Cookbook
+          </button>
         </div>
         <div class="mobile-links">
           <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" class="mobile-link" on:click={closeMobileMenu}>Docs</a>
@@ -197,8 +256,10 @@
   <!-- Content -->
   {#if activeTab === "models"}
     <App />
-  {:else}
+  {:else if activeTab === "providers"}
     <Providers />
+  {:else if activeTab === "cookbook"}
+    <Cookbook />
   {/if}
 
   <!-- Request Form Modal -->
