@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import App from "./App.svelte";
   import Providers from "./Providers.svelte";
+  import Cookbook from "./Cookbook.svelte";
   import RequestForm from "./RequestForm.svelte";
   import { initAnalytics, trackPageView, trackTabChange } from "./analytics";
 
@@ -258,10 +259,7 @@
   {:else if activeTab === "providers"}
     <Providers />
   {:else if activeTab === "cookbook"}
-    <div class="cookbook-placeholder">
-      <h2>Cookbook</h2>
-      <p>Coming soon...</p>
-    </div>
+    <Cookbook />
   {/if}
 
   <!-- Request Form Modal -->
@@ -699,26 +697,6 @@
       padding: 0.5rem 0.75rem;
       white-space: nowrap;
     }
-  }
-
-  /* Cookbook Placeholder */
-  .cookbook-placeholder {
-    max-width: 1400px;
-    margin: 3rem auto;
-    padding: 0 2rem;
-    text-align: center;
-  }
-
-  .cookbook-placeholder h2 {
-    font-size: 2rem;
-    font-weight: 700;
-    color: var(--text-color);
-    margin-bottom: 1rem;
-  }
-
-  .cookbook-placeholder p {
-    font-size: 1.125rem;
-    color: var(--text-secondary);
   }
 </style>
 
