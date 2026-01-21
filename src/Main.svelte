@@ -233,22 +233,22 @@
   {#if !statsLoading}
     <div class="stats-section">
       <div class="stats-container">
-        <div class="stat-card">
+        <button class="stat-card" on:click={() => selectTab("models")}>
           <div class="stat-value">{modelCount}</div>
           <div class="stat-label">Models Supported</div>
-        </div>
-        <div class="stat-card">
+        </button>
+        <button class="stat-card" on:click={() => selectTab("providers")}>
           <div class="stat-value">{providerCount}</div>
           <div class="stat-label">Providers</div>
-        </div>
-        <div class="stat-card">
+        </button>
+        <button class="stat-card" on:click={() => selectTab("providers")}>
           <div class="stat-value">{endpointCount}</div>
           <div class="stat-label">Unique Endpoints</div>
-        </div>
-        <div class="stat-card">
+        </button>
+        <button class="stat-card" on:click={() => selectTab("providers")}>
           <div class="stat-value">{providerEndpointCount}</div>
           <div class="stat-label">Provider + Endpoint Combinations</div>
-        </div>
+        </button>
       </div>
     </div>
   {/if}
@@ -630,6 +630,9 @@
     padding: 0.875rem 0.75rem;
     text-align: center;
     transition: background-color 0.2s ease, border-color 0.2s ease;
+    cursor: pointer;
+    font-family: inherit;
+    width: 100%;
   }
 
   .stat-card:hover {
