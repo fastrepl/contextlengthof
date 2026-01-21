@@ -141,6 +141,26 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     });
   }
 
+  /**
+   * Get the display name for a model, adding provider prefix when needed.
+   * This helps users understand which auth method is required.
+   * e.g., "gemini-2.0-flash" with provider "vertex_ai-language-models" -> "vertex_ai/gemini-2.0-flash"
+   */
+  function getDisplayModelName(name: string, litellm_provider: string): string {
+    // If the model name already has a provider prefix, return as-is
+    if (name.includes('/')) {
+      return name;
+    }
+
+    // Add prefix for vertex_ai models so users know they need GCP credentials
+    // Provider can be "vertex_ai", "vertex_ai-language-models", etc.
+    if (litellm_provider && litellm_provider.startsWith('vertex_ai')) {
+      return `vertex_ai/${name}`;
+    }
+
+    return name;
+  }
+
   function toggleRow(name: string) {
     if (expandedRows.has(name)) {
       expandedRows.delete(name);
@@ -329,10 +349,10 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
                       </div>
                     {/if}
                   </div>
-                  <span class="model-title">{name}</span>
-                  <button 
-                    class="copy-button" 
-                    on:click|stopPropagation={() => copyToClipboard(name)}
+                  <span class="model-title">{getDisplayModelName(name, litellm_provider)}</span>
+                  <button
+                    class="copy-button"
+                    on:click|stopPropagation={() => copyToClipboard(getDisplayModelName(name, litellm_provider))}
                     title="Copy model name"
                     type="button"
                   >
