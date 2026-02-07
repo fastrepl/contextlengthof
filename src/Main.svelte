@@ -3,10 +3,11 @@
   import App from "./App.svelte";
   import Providers from "./Providers.svelte";
   import Cookbook from "./Cookbook.svelte";
+  import Guardrails from "./Guardrails.svelte";
   import RequestForm from "./RequestForm.svelte";
   import { initAnalytics, trackPageView, trackTabChange } from "./analytics";
 
-  let activeTab: "models" | "providers" | "cookbook" = "models";
+  let activeTab: "models" | "providers" | "cookbook" | "guardrails" = "models";
   let mobileMenuOpen = false;
   let requestForm: RequestForm;
 
@@ -14,19 +15,22 @@
   const DOCS_URL = "https://docs.litellm.ai";
 
   // Map URL paths to tab names
-  function getTabFromPath(path: string): "models" | "providers" | "cookbook" {
+  function getTabFromPath(path: string): "models" | "providers" | "cookbook" | "guardrails" {
     if (path === "/providers" || path === "/providers/") {
       return "providers";
     } else if (path === "/cookbook" || path === "/cookbook/") {
       return "cookbook";
+    } else if (path === "/guardrails" || path === "/guardrails/") {
+      return "guardrails";
     }
     return "models";
   }
 
   // Get path from tab name
-  function getPathFromTab(tab: "models" | "providers" | "cookbook"): string {
+  function getPathFromTab(tab: "models" | "providers" | "cookbook" | "guardrails"): string {
     if (tab === "providers") return "/providers";
     if (tab === "cookbook") return "/cookbook";
+    if (tab === "guardrails") return "/guardrails";
     return "/";
   }
 
@@ -38,7 +42,7 @@
     mobileMenuOpen = false;
   }
 
-  function selectTab(tab: "models" | "providers" | "cookbook", updateUrl = true) {
+  function selectTab(tab: "models" | "providers" | "cookbook" | "guardrails", updateUrl = true) {
     activeTab = tab;
     closeMobileMenu();
     trackTabChange(tab);
@@ -163,6 +167,13 @@
           >
             Cookbook
           </button>
+          <button
+            class="tab"
+            class:active={activeTab === "guardrails"}
+            on:click={() => selectTab("guardrails")}
+          >
+            Guardrails
+          </button>
         </div>
         <nav class="nav-links">
           <button class="request-button" on:click={() => requestForm.openModal()}>
@@ -220,6 +231,13 @@
           >
             Cookbook
           </button>
+          <button
+            class="mobile-tab"
+            class:active={activeTab === "guardrails"}
+            on:click={() => selectTab("guardrails")}
+          >
+            Guardrails
+          </button>
         </div>
         <div class="mobile-links">
           <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" class="mobile-link" on:click={closeMobileMenu}>Docs</a>
@@ -260,6 +278,8 @@
     <Providers />
   {:else if activeTab === "cookbook"}
     <Cookbook />
+  {:else if activeTab === "guardrails"}
+    <Guardrails />
   {/if}
 
   <!-- Request Form Modal -->
