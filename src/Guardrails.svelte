@@ -289,8 +289,11 @@
                 <pre class="usage-code"><code>guardrails:
   - guardrail_name: "{item.id}"
     litellm_params:
-      guardrail: custom_code.{item.id}
-      mode: "{item.input_type === 'response' ? 'post_call' : 'pre_call'}"</code></pre>
+      guardrail: custom_code
+      mode: "{item.input_type === 'response' ? 'post_call' : 'pre_call'}"
+      custom_code: |
+        def apply_guardrail(inputs, request_data, input_type):
+          ... # paste code from above</code></pre>
               </div>
 
               <div class="card-footer">
