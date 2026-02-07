@@ -153,10 +153,6 @@
 </script>
 
 <div class="page-wrapper">
-  <div class="grid-background"></div>
-  <div class="glow glow-1"></div>
-  <div class="glow glow-2"></div>
-  <div class="glow glow-3"></div>
   
   <div class="guardrails-container">
   <!-- Header -->
@@ -356,52 +352,11 @@
   .page-wrapper {
     position: relative;
     min-height: 100vh;
-    background: #0a0a0f;
-    overflow: hidden;
-  }
-
-  .grid-background {
-    position: absolute;
-    inset: 0;
-    background-image: 
-      linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
-    background-size: 60px 60px;
-    mask-image: radial-gradient(ellipse 80% 50% at 50% 0%, black 40%, transparent 100%);
-    -webkit-mask-image: radial-gradient(ellipse 80% 50% at 50% 0%, black 40%, transparent 100%);
-  }
-
-  .glow {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(80px);
-    opacity: 0.4;
-    pointer-events: none;
-  }
-
-  .glow-1 {
-    width: 600px;
-    height: 600px;
-    background: radial-gradient(circle, rgba(99, 102, 241, 0.3) 0%, transparent 70%);
-    top: -200px;
-    left: 50%;
-    transform: translateX(-50%);
-  }
-
-  .glow-2 {
-    width: 400px;
-    height: 400px;
-    background: radial-gradient(circle, rgba(139, 92, 246, 0.25) 0%, transparent 70%);
-    top: 100px;
-    right: -100px;
-  }
-
-  .glow-3 {
-    width: 350px;
-    height: 350px;
-    background: radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, transparent 70%);
-    top: 200px;
-    left: -100px;
+    background-color: #09062C;
+    background-image: url('/bg-grid.svg');
+    background-size: cover;
+    background-position: top center;
+    background-repeat: no-repeat;
   }
 
   .guardrails-container {
