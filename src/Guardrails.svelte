@@ -352,11 +352,32 @@
   .page-wrapper {
     position: relative;
     min-height: 100vh;
-    background-color: #09062C;
-    background-image: url('/bg-grid.svg');
-    background-size: cover;
-    background-position: top center;
-    background-repeat: no-repeat;
+    background: #09062C;
+    overflow: hidden;
+  }
+
+  .page-wrapper::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: 
+      linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: linear-gradient(to bottom, black 0%, black 30%, transparent 70%);
+    -webkit-mask-image: linear-gradient(to bottom, black 0%, black 30%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .page-wrapper::after {
+    content: '';
+    position: absolute;
+    top: -200px;
+    left: 0;
+    right: 0;
+    height: 600px;
+    background: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(123, 97, 255, 0.15) 0%, transparent 70%);
+    pointer-events: none;
   }
 
   .guardrails-container {
