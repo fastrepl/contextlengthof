@@ -20,7 +20,7 @@
     item: Guardrail;
   };
 
-  const GUARDRAILS_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/guardrails_registry.json";
+  const GUARDRAILS_URL = "https://raw.githubusercontent.com/BerriAI/litellm-guardrails/main/guardrails.json";
 
   let categories: string[] = [];
   let selectedCategory: string = "";
@@ -52,7 +52,7 @@
       })
       .catch(() => {
         // Fallback to local file
-        fetch("/guardrails_registry.json")
+        fetch("/guardrails.json")
           .then((res) => res.json())
           .then((data) => {
             const items: Guardrail[] = Object.entries(data).map(
