@@ -178,7 +178,7 @@
         Documentation
       </a>
       <a
-        href="https://github.com/BerriAI/litellm/blob/main/guardrails_registry.json"
+        href="https://github.com/BerriAI/litellm-guardrails"
         target="_blank"
         rel="noopener noreferrer"
         class="btn btn-secondary"
