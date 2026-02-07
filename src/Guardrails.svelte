@@ -286,12 +286,11 @@
 
               <div class="usage-section">
                 <span class="usage-label">Usage in config.yaml:</span>
-                <pre class="usage-code"><code>litellm_settings:
-  guardrails:
-    - guardrail_name: "{item.id}"
-      litellm_params:
-        guardrail: custom_code.{item.id}
-        mode: "{item.input_type === 'response' ? 'post_call' : 'pre_call'}"</code></pre>
+                <pre class="usage-code"><code>guardrails:
+  - guardrail_name: "{item.id}"
+    litellm_params:
+      guardrail: custom_code.{item.id}
+      mode: "{item.input_type === 'response' ? 'post_call' : 'pre_call'}"</code></pre>
               </div>
 
               <div class="card-footer">
@@ -590,11 +589,15 @@
     font-size: 0.8125rem;
     line-height: 1.6;
     margin: 0;
+    text-align: left;
+    white-space: pre;
   }
 
   .code-block code,
   .usage-code code {
     color: var(--code-text);
+    text-align: left;
+    display: block;
   }
 
   .usage-section {
