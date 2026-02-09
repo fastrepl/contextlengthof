@@ -10,9 +10,79 @@
     tags: string[];
   }
 
+  interface Category {
+    name: string;
+    guides: Guide[];
+  }
+
+  const CATEGORY_RULES: { name: string; matchTitle?: RegExp; matchTags?: string[] }[] = [
+    {
+      name: "Usage & Cost Management",
+      matchTitle: /usage|track|cost|billing/i,
+    },
+    {
+      name: "AI Coding Assistants",
+      matchTags: ["Claude Code", "Cursor", "Github Copilot", "Gemini CLI", "OpenAI Codex CLI", "OpenAI Codex"],
+    },
+    {
+      name: "UIs & Interfaces",
+      matchTags: ["OpenWebUI"],
+    },
+  ];
+
+  function categorizeGuides(guides: Guide[]): Category[] {
+    const categoryMap = new Map<string, Guide[]>();
+
+    for (const guide of guides) {
+      let matched = false;
+      for (const rule of CATEGORY_RULES) {
+        if (rule.matchTitle && rule.matchTitle.test(guide.title)) {
+          const list = categoryMap.get(rule.name) || [];
+          list.push(guide);
+          categoryMap.set(rule.name, list);
+          matched = true;
+          break;
+        }
+        if (rule.matchTags && guide.tags.some(tag => rule.matchTags!.includes(tag))) {
+          const list = categoryMap.get(rule.name) || [];
+          list.push(guide);
+          categoryMap.set(rule.name, list);
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        const list = categoryMap.get("Other Guides") || [];
+        list.push(guide);
+        categoryMap.set("Other Guides", list);
+      }
+    }
+
+    // Return in the order defined by CATEGORY_RULES, then "Other Guides" at the end
+    const result: Category[] = [];
+    for (const rule of CATEGORY_RULES) {
+      const guides = categoryMap.get(rule.name);
+      if (guides && guides.length > 0) {
+        result.push({ name: rule.name, guides });
+      }
+    }
+    const other = categoryMap.get("Other Guides");
+    if (other && other.length > 0) {
+      result.push({ name: "Other Guides", guides: other });
+    }
+    return result;
+  }
+
   let guides: Guide[] = [];
+  let categories: Category[] = [];
+  let activeCategory: string = "All";
   let loading = true;
   let error: string | null = null;
+
+  $: categoryNames = ["All", ...categories.map(c => c.name)];
+  $: filteredGuides = activeCategory === "All"
+    ? guides
+    : categories.find(c => c.name === activeCategory)?.guides || [];
   let showSubmitModal = false;
   let submitLoading = false;
   let submitSuccess = false;
@@ -53,6 +123,7 @@
 
       // Sort by date (newest first)
       guides = guides.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      categories = categorizeGuides(guides);
 
       loading = false;
     } catch (err) {
@@ -190,8 +261,20 @@
         <p>No guides available at the moment.</p>
       </div>
     {:else}
+      <div class="category-pills">
+        {#each categoryNames as name}
+          <button
+            class="pill"
+            class:active={activeCategory === name}
+            on:click={() => activeCategory = name}
+          >
+            {name}
+          </button>
+        {/each}
+      </div>
+
       <div class="guides-grid">
-        {#each guides as guide}
+        {#each filteredGuides as guide}
           <div class="guide-card" on:click={() => openGuide(guide)} on:keydown={(e) => e.key === 'Enter' && openGuide(guide)} role="button" tabindex="0">
             <h2 class="guide-title">{guide.title}</h2>
             <p class="guide-description">{guide.description}</p>
@@ -463,6 +546,39 @@
     text-align: center;
     padding: 4rem 2rem;
     color: var(--text-secondary);
+  }
+
+  /* Category Pills */
+  .category-pills {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 2rem;
+    justify-content: center;
+  }
+
+  .pill {
+    padding: 0.5rem 1rem;
+    border-radius: 100px;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+  }
+
+  .pill:hover {
+    border-color: var(--text-secondary);
+    color: var(--text-color);
+  }
+
+  .pill.active {
+    background: var(--text-color);
+    color: var(--bg-color);
+    border-color: var(--text-color);
   }
 
   /* Guides Grid */
