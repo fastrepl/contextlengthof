@@ -11,7 +11,7 @@
 
 <main class="container">
   <div class="hero">
-    <h1 class="hero-title">API Model Pricing</h1>
+    <h1 class="hero-title">Model Data API</h1>
     <p class="hero-subtitle">
       Query LiteLLM's model pricing &amp; context window data programmatically
     </p>

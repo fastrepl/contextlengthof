@@ -183,7 +183,7 @@
             class:active={activeTab === "api-pricing"}
             on:click={() => selectTab("api-pricing")}
           >
-            API Model Pricing
+            Model Data API
           </button>
         </div>
         <nav class="nav-links">
@@ -254,7 +254,7 @@
             class:active={activeTab === "api-pricing"}
             on:click={() => selectTab("api-pricing")}
           >
-            API Model Pricing
+            Model Data API
           </button>
         </div>
         <div class="mobile-links">
