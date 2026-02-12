@@ -4,10 +4,11 @@
   import Providers from "./Providers.svelte";
   import Cookbook from "./Cookbook.svelte";
   import Guardrails from "./Guardrails.svelte";
+  import ApiPricing from "./ApiPricing.svelte";
   import RequestForm from "./RequestForm.svelte";
   import { initAnalytics, trackPageView, trackTabChange } from "./analytics";
 
-  let activeTab: "models" | "providers" | "cookbook" | "guardrails" = "models";
+  let activeTab: "models" | "providers" | "cookbook" | "guardrails" | "api-pricing" = "models";
   let mobileMenuOpen = false;
   let requestForm: RequestForm;
 
@@ -15,22 +16,25 @@
   const DOCS_URL = "https://docs.litellm.ai";
 
   // Map URL paths to tab names
-  function getTabFromPath(path: string): "models" | "providers" | "cookbook" | "guardrails" {
+  function getTabFromPath(path: string): "models" | "providers" | "cookbook" | "guardrails" | "api-pricing" {
     if (path === "/providers" || path === "/providers/") {
       return "providers";
     } else if (path === "/cookbook" || path === "/cookbook/") {
       return "cookbook";
     } else if (path === "/guardrails" || path === "/guardrails/") {
       return "guardrails";
+    } else if (path === "/api-pricing" || path === "/api-pricing/") {
+      return "api-pricing";
     }
     return "models";
   }
 
   // Get path from tab name
-  function getPathFromTab(tab: "models" | "providers" | "cookbook" | "guardrails"): string {
+  function getPathFromTab(tab: "models" | "providers" | "cookbook" | "guardrails" | "api-pricing"): string {
     if (tab === "providers") return "/providers";
     if (tab === "cookbook") return "/cookbook";
     if (tab === "guardrails") return "/guardrails";
+    if (tab === "api-pricing") return "/api-pricing";
     return "/";
   }
 
@@ -42,7 +46,7 @@
     mobileMenuOpen = false;
   }
 
-  function selectTab(tab: "models" | "providers" | "cookbook" | "guardrails", updateUrl = true) {
+  function selectTab(tab: "models" | "providers" | "cookbook" | "guardrails" | "api-pricing", updateUrl = true) {
     activeTab = tab;
     closeMobileMenu();
     trackTabChange(tab);
@@ -174,6 +178,13 @@
           >
             Guardrails
           </button>
+          <button
+            class="tab"
+            class:active={activeTab === "api-pricing"}
+            on:click={() => selectTab("api-pricing")}
+          >
+            API Model Pricing
+          </button>
         </div>
         <nav class="nav-links">
           <button class="request-button" on:click={() => requestForm.openModal()}>
@@ -238,6 +249,13 @@
           >
             Guardrails
           </button>
+          <button
+            class="mobile-tab"
+            class:active={activeTab === "api-pricing"}
+            on:click={() => selectTab("api-pricing")}
+          >
+            API Model Pricing
+          </button>
         </div>
         <div class="mobile-links">
           <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" class="mobile-link" on:click={closeMobileMenu}>Docs</a>
@@ -280,6 +298,8 @@
     <Cookbook />
   {:else if activeTab === "guardrails"}
     <Guardrails />
+  {:else if activeTab === "api-pricing"}
+    <ApiPricing />
   {/if}
 
   <!-- Request Form Modal -->
