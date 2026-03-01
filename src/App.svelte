@@ -28,6 +28,13 @@
   let maxInputTokens: number | null = null;
   let maxOutputTokens: number | null = null;
 
+  // Sorting state
+  let sortColumn: string = "";
+  let sortDirection: "asc" | "desc" = "asc";
+
+  // Copy toast
+  let copiedModel = "";
+
   onMount(() => {
     const urlParams = new URLSearchParams(window.location.search);
     query = urlParams.get("q") ?? "";
@@ -56,8 +63,6 @@
         );
 
         providers = [...new Set(items.map((i) => i.litellm_provider))];
-
-        // sort providers alphabetically
         providers.sort();
 
         index = new Fuse(items, {
@@ -72,7 +77,6 @@
           ],
         });
 
-        // Initialize results with all items
         results = items.map((item, refIndex) => ({ item, refIndex }));
         loading = false;
       });
@@ -87,7 +91,6 @@
     };
   };
 
-  // Debounced search tracking
   const trackSearchDebounced = debounce((query: string, provider: string, resultsCount: number) => {
     if (query) {
       trackSearch(query, provider, resultsCount);
@@ -145,27 +148,18 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
 
   function copyToClipboard(text: string) {
     navigator.clipboard.writeText(text).then(() => {
-      // You could add a toast notification here if desired
+      copiedModel = text;
+      setTimeout(() => { copiedModel = ""; }, 1500);
     });
   }
 
-  /**
-   * Get the display name for a model, adding provider prefix when needed.
-   * This helps users understand which auth method is required.
-   * e.g., "gemini-2.0-flash" with provider "vertex_ai-language-models" -> "vertex_ai/gemini-2.0-flash"
-   */
   function getDisplayModelName(name: string, litellm_provider: string): string {
-    // If the model name already has a provider prefix, return as-is
     if (name.includes('/')) {
       return name;
     }
-
-    // Add prefix for vertex_ai models so users know they need GCP credentials
-    // Provider can be "vertex_ai", "vertex_ai-language-models", etc.
     if (litellm_provider && litellm_provider.startsWith('vertex_ai')) {
       return `vertex_ai/${name}`;
     }
-
     return name;
   }
 
@@ -175,7 +169,78 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     } else {
       expandedRows.add(name);
     }
-    expandedRows = expandedRows; // Trigger reactivity
+    expandedRows = expandedRows;
+  }
+
+  function handleSort(column: string) {
+    if (sortColumn === column) {
+      sortDirection = sortDirection === "asc" ? "desc" : "asc";
+    } else {
+      sortColumn = column;
+      sortDirection = "asc";
+    }
+    applySorting();
+  }
+
+  function getSortValue(item: any, column: string): number {
+    switch (column) {
+      case "context": return item.max_input_tokens || 0;
+      case "input": return item.input_cost_per_token || 0;
+      case "output": return item.output_cost_per_token || 0;
+      case "cache_read": return item.cache_read_input_token_cost || 0;
+      case "cache_write": return item.cache_creation_input_token_cost || 0;
+      default: return 0;
+    }
+  }
+
+  function applySorting() {
+    if (!sortColumn) return;
+    results = [...results].sort((a, b) => {
+      const aVal = getSortValue(a.item, sortColumn);
+      const bVal = getSortValue(b.item, sortColumn);
+      return sortDirection === "asc" ? aVal - bVal : bVal - aVal;
+    });
+  }
+
+  function formatCost(costPerToken: number | undefined): string {
+    if (!costPerToken) return "—";
+    const perMillion = costPerToken * 1000000;
+    if (perMillion < 0.01) return "<$0.01";
+    return "$" + perMillion.toFixed(2);
+  }
+
+  function formatContext(tokens: number | undefined): string {
+    if (!tokens || tokens <= 0) return "—";
+    if (tokens >= 1000000) return (tokens / 1000000).toFixed(0) + "M";
+    if (tokens >= 1000) return (tokens / 1000).toFixed(0) + "K";
+    return tokens.toString();
+  }
+
+  function getFeatureBadges(item: any): string[] {
+    const badges: string[] = [];
+    if (item.supports_function_calling) badges.push("Functions");
+    if (item.supports_vision) badges.push("Vision");
+    if (item.supports_response_schema) badges.push("JSON");
+    if (item.supports_tool_choice) badges.push("Tools");
+    if (item.supports_parallel_function_calling) badges.push("Parallel");
+    if (item.supports_audio_input) badges.push("Audio");
+    if (item.supports_prompt_caching) badges.push("Caching");
+    return badges;
+  }
+
+  function getModeLabel(mode: string | undefined): string {
+    if (!mode) return "";
+    const labels: Record<string, string> = {
+      "chat": "Chat",
+      "completion": "Completion",
+      "embedding": "Embedding",
+      "image_generation": "Image Gen",
+      "audio_transcription": "Transcription",
+      "audio_speech": "TTS",
+      "moderation": "Moderation",
+      "rerank": "Rerank",
+    };
+    return labels[mode] || mode;
   }
 
   function filterResults(
@@ -187,10 +252,8 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     if (index) {
       let filteredResults: Item[];
 
-      // Get all items from the index
       const allItems = index["_docs"] as Item[];
 
-      // Filter by provider and max_input_tokens and max_output_tokens
       filteredResults = allItems.filter(
         (item) =>
           (!selectedProvider || item.litellm_provider === selectedProvider) &&
@@ -202,9 +265,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
               item.max_output_tokens >= maxOutputTokens)),
       );
 
-      // Then, apply search query if it's not empty
       if (query) {
-        // Create a new Fuse instance with the filtered results
         const filteredIndex = new Fuse(filteredResults, {
           threshold: 0.3,
           keys: [
@@ -221,11 +282,11 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
         filteredResults = searchResults.map((result) => result.item);
       }
 
-      // Map the filtered results to the ResultItem format
       results = filteredResults.map((item, refIndex) => ({ item, refIndex }));
       loading = false;
 
-      // Track search event (debounced)
+      if (sortColumn) applySorting();
+
       trackSearchDebounced(query, selectedProvider, results.length);
     }
   }
@@ -234,9 +295,13 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
 <main class="container">
   <!-- Hero Section -->
   <div class="hero">
-    <h1 class="hero-title">Browse LiteLLM Models</h1>
+    <div class="hero-badge">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+      Open-source AI Gateway — 27K+ GitHub Stars
+    </div>
+    <h1 class="hero-title">The Most Comprehensive<br/>AI Model Catalog</h1>
     <p class="hero-subtitle">
-      A catalog of AI models with pricing and context window information, powered by LiteLLM's comprehensive model database.
+      Compare pricing, context windows, and features for <strong>2,600+ models</strong> across <strong>140+ providers</strong>. Powered by LiteLLM's open-source model database.
     </p>
     
     <div class="cta-buttons">
@@ -246,7 +311,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
         rel="noopener noreferrer"
         class="btn btn-primary"
       >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 8px;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 6px;">
           <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
         </svg>
         View on GitHub
@@ -262,11 +327,24 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     </div>
   </div>
 
+  <!-- Trust Logos -->
+  <div class="trust-section">
+    <p class="trust-label">Powering AI infrastructure at</p>
+    <div class="trust-logos">
+      <span class="trust-logo">NASA</span>
+      <span class="trust-logo">Adobe</span>
+      <span class="trust-logo">Netflix</span>
+      <span class="trust-logo">Stripe</span>
+      <span class="trust-logo">NVIDIA</span>
+      <span class="trust-logo">Cruise</span>
+    </div>
+  </div>
+
   <!-- Search and Filters -->
   <div class="search-section">
     <div class="search-bar-container">
       <div class="search-input-wrapper">
-        <svg class="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <svg class="search-icon" width="18" height="18" viewBox="0 0 20 20" fill="none">
           <circle cx="8.5" cy="8.5" r="5.75" stroke="currentColor" stroke-width="1.5"/>
           <path d="M12.5 12.5L16.5 16.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
@@ -277,9 +355,14 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
           autocomplete="off"
           name="query"
           aria-label="Search models"
-          placeholder="Search model..."
+          placeholder="Search models... (e.g., gpt-4o, claude-3.5, gemini)"
           class="search-input"
         />
+        {#if query}
+          <button class="search-clear" on:click={() => { query = ""; }} type="button">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        {/if}
       </div>
       
       <ProviderDropdown bind:selectedProvider {providers} />
@@ -309,14 +392,37 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
         />
       </div>
     </div>
+
+    {#if !loading}
+      <div class="results-meta">
+        <span class="results-count">{results.length.toLocaleString()} models</span>
+        {#if query || selectedProvider || maxInputTokens || maxOutputTokens}
+          <button class="clear-filters" on:click={() => { query = ""; selectedProvider = ""; maxInputTokens = null; maxOutputTokens = null; }}>
+            Clear all filters
+          </button>
+        {/if}
+      </div>
+    {/if}
   </div>
 
   {#if loading}
-    <span aria-busy="true" />
+    <div class="table-container">
+      <div class="skeleton-table">
+        {#each [1,2,3,4,5,6,7,8] as _}
+          <div class="skeleton-row">
+            <div class="skeleton-cell wide"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+          </div>
+        {/each}
+      </div>
+    </div>
   {:else}
     {#if query != "" && results.length < 12}
       <div class="add-model-section">
-        <a href={getIssueUrlForAdd(query)}>Add new model?</a>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+        <a href={getIssueUrlForAdd(query)}>Can't find your model? Request it on GitHub</a>
       </div>
     {/if}
 
@@ -324,20 +430,35 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
       <table>
         <thead>
           <tr>
-            <th>Model</th>
-            <th>Context</th>
-            <th>Input Tokens</th>
-            <th>Output Tokens</th>
-            <th>Cache Read Tokens</th>
-            <th>Cache Write Tokens</th>
+            <th class="th-model">Model</th>
+            <th class="th-sortable" on:click={() => handleSort("context")}>
+              Context
+              <span class="sort-icon" class:active={sortColumn === "context"} class:desc={sortColumn === "context" && sortDirection === "desc"}>↑</span>
+            </th>
+            <th class="th-sortable" on:click={() => handleSort("input")}>
+              Input $/M
+              <span class="sort-icon" class:active={sortColumn === "input"} class:desc={sortColumn === "input" && sortDirection === "desc"}>↑</span>
+            </th>
+            <th class="th-sortable" on:click={() => handleSort("output")}>
+              Output $/M
+              <span class="sort-icon" class:active={sortColumn === "output"} class:desc={sortColumn === "output" && sortDirection === "desc"}>↑</span>
+            </th>
+            <th class="th-sortable th-hide-mobile" on:click={() => handleSort("cache_read")}>
+              Cache Read
+              <span class="sort-icon" class:active={sortColumn === "cache_read"} class:desc={sortColumn === "cache_read" && sortDirection === "desc"}>↑</span>
+            </th>
+            <th class="th-sortable th-hide-mobile" on:click={() => handleSort("cache_write")}>
+              Cache Write
+              <span class="sort-icon" class:active={sortColumn === "cache_write"} class:desc={sortColumn === "cache_write" && sortDirection === "desc"}>↑</span>
+            </th>
           </tr>
         </thead>
         <tbody>
-          {#each results as { item: { name, mode, litellm_provider, max_input_tokens, max_output_tokens, input_cost_per_token, output_cost_per_token, cache_creation_input_token_cost, cache_read_input_token_cost, ...data } } (name)}
+          {#each results as { item: { name, mode, litellm_provider, max_input_tokens, max_output_tokens, input_cost_per_token, output_cost_per_token, cache_creation_input_token_cost, cache_read_input_token_cost, supports_function_calling, supports_vision, supports_response_schema, supports_tool_choice, supports_parallel_function_calling, supports_audio_input, supports_prompt_caching, ...data } } (name)}
             <tr class="model-row" class:expanded={expandedRows.has(name)} on:click={() => toggleRow(name)}>
               <td class="model-name">
                 <div class="model-info">
-                  <svg class="expand-icon" class:expanded={expandedRows.has(name)} width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <svg class="expand-icon" class:expanded={expandedRows.has(name)} width="14" height="14" viewBox="0 0 16 16" fill="none">
                     <path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
                   <div class="provider-avatar">
@@ -360,31 +481,135 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
                       </div>
                     {/if}
                   </div>
-                  <span class="model-title">{getDisplayModelName(name, litellm_provider)}</span>
+                  <div class="model-name-group">
+                    <span class="model-title">{getDisplayModelName(name, litellm_provider)}</span>
+                    {#if mode}
+                      <span class="mode-badge">{getModeLabel(mode)}</span>
+                    {/if}
+                  </div>
                   <button
                     class="copy-button"
                     on:click|stopPropagation={() => copyToClipboard(getDisplayModelName(name, litellm_provider))}
                     title="Copy model name"
                     type="button"
                   >
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <rect x="4" y="4" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
-                      <path d="M2 6V2.5C2 1.67157 2.67157 1 3.5 1H7" stroke="currentColor" stroke-width="1.2"/>
-                    </svg>
+                    {#if copiedModel === getDisplayModelName(name, litellm_provider)}
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success-color)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    {:else}
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                        <rect x="4" y="4" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
+                        <path d="M2 6V2.5C2 1.67157 2.67157 1 3.5 1H7" stroke="currentColor" stroke-width="1.2"/>
+                      </svg>
+                    {/if}
                   </button>
                 </div>
               </td>
-              <td class="context-cell">{max_input_tokens && max_input_tokens > 0 && (max_input_tokens / 1000).toFixed(0) !== '0' ? (max_input_tokens >= 1000000 ? (max_input_tokens / 1000000).toFixed(0) + 'M' : (max_input_tokens / 1000).toFixed(0) + 'K') : '—'}</td>
-              <td class="cost-cell">{input_cost_per_token ? '$' + (input_cost_per_token * 1000000).toFixed(2) + '/M' : '—'}</td>
-              <td class="cost-cell">{output_cost_per_token ? '$' + (output_cost_per_token * 1000000).toFixed(2) + '/M' : '—'}</td>
-              <td class="cost-cell">{cache_read_input_token_cost ? '$' + (cache_read_input_token_cost * 1000000).toFixed(2) + '/M' : '—'}</td>
-              <td class="cost-cell">{cache_creation_input_token_cost ? '$' + (cache_creation_input_token_cost * 1000000).toFixed(2) + '/M' : '—'}</td>
+              <td class="context-cell">{formatContext(max_input_tokens)}</td>
+              <td class="cost-cell">{formatCost(input_cost_per_token)}</td>
+              <td class="cost-cell">{formatCost(output_cost_per_token)}</td>
+              <td class="cost-cell td-hide-mobile">{formatCost(cache_read_input_token_cost)}</td>
+              <td class="cost-cell td-hide-mobile">{formatCost(cache_creation_input_token_cost)}</td>
             </tr>
             {#if expandedRows.has(name)}
               <tr class="expanded-content" transition:fly={{ y: -10, duration: 200 }}>
                 <td colspan="6">
-                  <div class="code-block">
-                    <pre><code>{JSON.stringify({ name, mode, litellm_provider, max_input_tokens, max_output_tokens, input_cost_per_token, output_cost_per_token, cache_creation_input_token_cost, cache_read_input_token_cost, ...data }, null, 2)}</code></pre>
+                  <div class="detail-panel">
+                    <div class="detail-grid">
+                      <!-- Pricing Cards -->
+                      <div class="detail-section">
+                        <h4 class="detail-heading">Pricing <span class="detail-unit">per 1M tokens</span></h4>
+                        <div class="pricing-cards">
+                          <div class="pricing-card">
+                            <span class="pricing-label">Input</span>
+                            <span class="pricing-value">{formatCost(input_cost_per_token)}</span>
+                          </div>
+                          <div class="pricing-card">
+                            <span class="pricing-label">Output</span>
+                            <span class="pricing-value">{formatCost(output_cost_per_token)}</span>
+                          </div>
+                          <div class="pricing-card">
+                            <span class="pricing-label">Cache Read</span>
+                            <span class="pricing-value">{formatCost(cache_read_input_token_cost)}</span>
+                          </div>
+                          <div class="pricing-card">
+                            <span class="pricing-label">Cache Write</span>
+                            <span class="pricing-value">{formatCost(cache_creation_input_token_cost)}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Model Info -->
+                      <div class="detail-section">
+                        <h4 class="detail-heading">Model Info</h4>
+                        <div class="info-rows">
+                          <div class="info-row">
+                            <span class="info-label">Provider</span>
+                            <span class="info-value">{litellm_provider || "—"}</span>
+                          </div>
+                          <div class="info-row">
+                            <span class="info-label">Mode</span>
+                            <span class="info-value">{mode ? getModeLabel(mode) : "—"}</span>
+                          </div>
+                          <div class="info-row">
+                            <span class="info-label">Max Input</span>
+                            <span class="info-value">{max_input_tokens ? max_input_tokens.toLocaleString() + " tokens" : "—"}</span>
+                          </div>
+                          <div class="info-row">
+                            <span class="info-label">Max Output</span>
+                            <span class="info-value">{max_output_tokens ? max_output_tokens.toLocaleString() + " tokens" : "—"}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Features -->
+                      <div class="detail-section">
+                        <h4 class="detail-heading">Features</h4>
+                        <div class="feature-list">
+                          {#each [
+                            { key: supports_function_calling, label: "Function Calling" },
+                            { key: supports_vision, label: "Vision" },
+                            { key: supports_response_schema, label: "JSON Mode" },
+                            { key: supports_tool_choice, label: "Tool Choice" },
+                            { key: supports_parallel_function_calling, label: "Parallel Calls" },
+                            { key: supports_audio_input, label: "Audio Input" },
+                            { key: supports_prompt_caching, label: "Prompt Caching" },
+                          ] as feature}
+                            <div class="feature-item" class:supported={feature.key}>
+                              {#if feature.key}
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success-color)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                              {:else}
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted-color)" stroke-width="2" stroke-linecap="round" opacity="0.4"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                              {/if}
+                              <span>{feature.label}</span>
+                            </div>
+                          {/each}
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Code snippet -->
+                    <div class="detail-code-section">
+                      <div class="code-header-row">
+                        <h4 class="detail-heading">Quick Start</h4>
+                        <button class="copy-code-btn" on:click|stopPropagation={() => copyToClipboard(`from litellm import completion\n\nresponse = completion(\n    model="${getDisplayModelName(name, litellm_provider)}",\n    messages=[{"role": "user", "content": "Hello!"}]\n)`)}>
+                          {copiedModel.includes("from litellm") ? "Copied!" : "Copy"}
+                        </button>
+                      </div>
+                      <pre class="code-snippet"><code><span class="code-kw">from</span> litellm <span class="code-kw">import</span> completion
+
+response = completion(
+    model=<span class="code-str">"{getDisplayModelName(name, litellm_provider)}"</span>,
+    messages=[{`{`}<span class="code-str">"role"</span>: <span class="code-str">"user"</span>, <span class="code-str">"content"</span>: <span class="code-str">"Hello!"</span>{`}`}]
+)</code></pre>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="detail-actions">
+                      <a href={getIssueUrlForFix(name)} target="_blank" rel="noopener noreferrer" class="detail-action-link" on:click|stopPropagation>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        Report incorrect data
+                      </a>
+                    </div>
                   </div>
                 </td>
               </tr>
@@ -397,12 +622,6 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
 </main>
 
 <style>
-  :root {
-    --litellm-primary: #6366f1;
-    --litellm-dark: #0f0f23;
-    --litellm-purple: #8b5cf6;
-  }
-
   .container {
     background-color: var(--bg-color);
     color: var(--text-color);
@@ -411,37 +630,57 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   /* Hero Section */
   .hero {
     text-align: center;
-    padding: 5rem 2rem 4rem;
-    max-width: 900px;
+    padding: 4rem 2rem 2.5rem;
+    max-width: 800px;
     margin: 0 auto;
-    background-color: var(--bg-color);
-    color: var(--text-color);
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 1rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 100px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--muted-color);
+    margin-bottom: 1.5rem;
+  }
+
+  .hero-badge svg {
+    color: #f59e0b;
+    fill: #f59e0b;
   }
 
   .hero-title {
-    font-size: 4rem;
-    font-weight: 700;
+    font-size: 3.25rem;
+    font-weight: 800;
     line-height: 1.1;
     margin: 0 0 1.25rem 0;
     color: var(--text-color);
-    letter-spacing: -0.03em;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+    letter-spacing: -0.04em;
   }
 
   .hero-subtitle {
-    font-size: 1.25rem;
-    line-height: 1.5;
-    color: var(--muted-color);
+    font-size: 1.125rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
     margin: 0 0 2rem 0;
-    max-width: 700px;
+    max-width: 600px;
     margin-left: auto;
     margin-right: auto;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  }
+
+  .hero-subtitle strong {
+    color: var(--text-color);
+    font-weight: 600;
   }
 
   .cta-buttons {
     display: flex;
-    gap: 1rem;
+    gap: 0.75rem;
     justify-content: center;
     align-items: center;
   }
@@ -450,14 +689,13 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 0.875rem 2rem;
-    font-size: 1rem;
-    font-weight: 500;
-    border-radius: 100px;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    border-radius: 10px;
     text-decoration: none;
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
     border: 1px solid transparent;
-    cursor: pointer;
   }
 
   .btn-primary {
@@ -467,34 +705,66 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   }
 
   .btn-primary:hover {
-    background-color: var(--text-secondary);
-    border-color: var(--text-secondary);
+    opacity: 0.85;
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    box-shadow: var(--shadow-lg);
   }
 
   .btn-secondary {
     background-color: var(--bg-color);
     color: var(--text-color);
-    border-color: var(--border-color);
+    border-color: var(--border-color-strong);
   }
 
   .btn-secondary:hover {
-    border-color: var(--border-color-strong);
-    background-color: var(--hover-bg);
+    border-color: var(--text-color);
+    background-color: var(--bg-secondary);
+  }
+
+  /* Trust Section */
+  .trust-section {
+    text-align: center;
+    padding: 1.5rem 2rem 2.5rem;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+
+  .trust-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted-color);
+    margin-bottom: 1rem;
+  }
+
+  .trust-logos {
+    display: flex;
+    gap: 2.5rem;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .trust-logo {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--border-color-strong);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
 
   /* Search Section */
   .search-section {
     max-width: 1400px;
-    margin: 4rem auto 2rem;
+    margin: 0 auto;
     padding: 0 2rem;
   }
 
   .search-bar-container {
     display: flex;
-    gap: 1rem;
-    margin-bottom: 1rem;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
     align-items: center;
   }
 
@@ -506,106 +776,150 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   .search-icon {
     position: absolute;
     left: 1rem;
-    top: 14px;
+    top: 50%;
+    transform: translateY(-50%);
     color: var(--muted-color);
     pointer-events: none;
-    z-index: 1;
   }
 
   .search-input {
     width: 100%;
-    padding: 0.875rem 1rem 0.875rem 3rem;
-    font-size: 1rem;
-    border: 1px solid var(--border-color-strong);
-    border-radius: 8px;
+    padding: 0.75rem 2.5rem 0.75rem 2.75rem;
+    font-size: 0.9375rem;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
     background-color: var(--bg-color);
     color: var(--text-color);
-    transition: all 0.2s ease;
-    height: 48px;
+    transition: all 0.15s ease;
+    height: 44px;
     box-sizing: border-box;
   }
 
-  .search-input:hover {
-    border-color: var(--muted-color);
-  }
+  .search-input:hover { border-color: var(--border-color-strong); }
 
   .search-input:focus {
     outline: none;
     border-color: var(--litellm-primary);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08);
   }
 
-  .search-input::placeholder {
+  .search-input::placeholder { color: var(--muted-color); }
+
+  .search-clear {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
     color: var(--muted-color);
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
   }
+
+  .search-clear:hover { color: var(--text-color); background: var(--bg-tertiary); }
 
   /* Filters */
   .filters-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    margin-top: 1rem;
+    gap: 0.75rem;
   }
 
   .filter-group {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.25rem;
   }
 
   .filter-group label {
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--contrast);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted-color);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
   }
 
   .filter-input {
-    padding: 0.875rem 1rem;
-    font-size: 1rem;
-    border: 1px solid var(--border-color-strong);
-    border-radius: 8px;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.9375rem;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
     background-color: var(--bg-color);
     color: var(--text-color);
-    transition: all 0.2s ease;
-    height: 48px;
+    transition: all 0.15s ease;
+    height: 40px;
     box-sizing: border-box;
   }
 
-  .filter-input:hover {
-    border-color: var(--muted-color);
-  }
+  .filter-input:hover { border-color: var(--border-color-strong); }
 
   .filter-input:focus {
     outline: none;
     border-color: var(--litellm-primary);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08);
   }
 
-  .filter-input::placeholder {
+  .filter-input::placeholder { color: var(--muted-color); }
+
+  /* Results meta */
+  .results-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 1rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .results-count {
+    font-size: 0.8125rem;
+    font-weight: 500;
     color: var(--muted-color);
   }
+
+  .clear-filters {
+    font-size: 0.8125rem;
+    color: var(--litellm-primary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+  .clear-filters:hover { text-decoration: underline; }
 
   /* Add Model Section */
   .add-model-section {
     max-width: 1400px;
-    margin: 0 auto 1rem;
-    padding: 0 2rem;
+    margin: 0.75rem auto;
+    padding: 0.75rem 1.25rem;
+    margin-left: 2rem;
+    margin-right: 2rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
+
+  .add-model-section svg { color: var(--litellm-primary); flex-shrink: 0; }
 
   .add-model-section a {
-    color: var(--link-color);
+    color: var(--litellm-primary);
     text-decoration: none;
-    font-size: 0.95rem;
+    font-size: 0.875rem;
+    font-weight: 500;
   }
 
-  .add-model-section a:hover {
-    text-decoration: underline;
-    color: var(--link-hover);
-  }
+  .add-model-section a:hover { text-decoration: underline; }
 
-  /* Table styles */
+  /* Table */
   .table-container {
-    margin: 2rem auto 4rem;
+    margin: 1rem auto 4rem;
     max-width: 1400px;
     padding: 0 2rem;
     overflow-x: auto;
@@ -616,76 +930,78 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     border-collapse: collapse;
     background: var(--card-bg);
     border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     border: 1px solid var(--border-color);
+    overflow: hidden;
   }
 
   thead {
-    background-color: var(--card-bg);
+    background-color: var(--bg-secondary);
     border-bottom: 1px solid var(--border-color);
   }
 
   th {
-    padding: 0.75rem 1.5rem;
+    padding: 0.625rem 1rem;
     text-align: left;
-    font-weight: 500;
-    font-size: 0.75rem;
+    font-weight: 600;
+    font-size: 0.6875rem;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
     color: var(--muted-color);
-    background-color: var(--card-bg);
+    background-color: var(--bg-secondary);
+    white-space: nowrap;
+    user-select: none;
   }
 
-  tbody {
-    background-color: var(--card-bg);
+  .th-model { padding-left: 1rem; }
+
+  .th-sortable {
+    cursor: pointer;
+    transition: color 0.15s;
   }
+
+  .th-sortable:hover { color: var(--text-color); }
+
+  .sort-icon {
+    display: inline-block;
+    margin-left: 0.25rem;
+    opacity: 0;
+    transition: all 0.15s;
+    font-size: 0.625rem;
+  }
+
+  .th-sortable:hover .sort-icon { opacity: 0.3; }
+  .sort-icon.active { opacity: 1; color: var(--litellm-primary); }
+  .sort-icon.desc { transform: rotate(180deg); }
 
   tbody tr.model-row {
     border-bottom: 1px solid var(--border-color);
-    transition: background-color 0.15s ease;
+    transition: background-color 0.1s ease;
     cursor: pointer;
-    background-color: var(--card-bg);
   }
 
-  tbody tr.model-row:hover {
-    background-color: var(--hover-bg);
-  }
+  tbody tr.model-row:hover { background-color: var(--hover-bg); }
+  tbody tr.model-row.expanded { background-color: var(--bg-secondary); }
+  tbody tr.model-row:last-child { border-bottom: none; }
 
-  tbody tr.model-row.expanded {
-    background-color: var(--bg-tertiary);
-  }
-
-  tbody tr.model-row:last-child {
-    border-bottom: none;
-  }
-
-  tbody tr.expanded-content {
-    border-bottom: 1px solid var(--border-color);
-  }
-
-  tbody tr.expanded-content td {
-    padding: 0;
-  }
+  tbody tr.expanded-content { border-bottom: 1px solid var(--border-color); }
+  tbody tr.expanded-content td { padding: 0; }
 
   td {
-    padding: 0.875rem 1.5rem;
+    padding: 0.625rem 1rem;
     vertical-align: middle;
-    font-size: 0.9375rem;
-    background-color: var(--card-bg);
+    font-size: 0.875rem;
     color: var(--text-color);
   }
 
   .model-name {
     font-weight: 500;
-    min-width: 300px;
-    color: var(--text-color);
+    min-width: 280px;
   }
 
   .model-info {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    position: relative;
+    gap: 0.625rem;
   }
 
   .expand-icon {
@@ -694,9 +1010,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     flex-shrink: 0;
   }
 
-  .expand-icon.expanded {
-    transform: rotate(90deg);
-  }
+  .expand-icon.expanded { transform: rotate(90deg); }
 
   .copy-button {
     display: flex;
@@ -708,36 +1022,30 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     border-radius: 4px;
     cursor: pointer;
     color: var(--muted-color);
-    transition: all 0.15s ease;
-    margin-left: 0.5rem;
+    transition: all 0.1s ease;
+    opacity: 0;
+    margin-left: 0.25rem;
+    flex-shrink: 0;
   }
 
-  .copy-button:hover {
-    background-color: var(--hover-bg);
-    color: var(--text-secondary);
-  }
-
-  .copy-button:active {
-    transform: scale(0.95);
-    background-color: var(--bg-tertiary);
-  }
+  .model-row:hover .copy-button { opacity: 1; }
+  .copy-button:hover { background-color: var(--bg-tertiary); color: var(--text-secondary); }
 
   .provider-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background-color: var(--bg-color);
-    color: var(--text-color);
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background-color: var(--bg-secondary);
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 600;
-    font-size: 0.75rem;
+    font-size: 0.625rem;
     flex-shrink: 0;
     overflow: hidden;
     position: relative;
-    padding: 4px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    padding: 3px;
+    border: 1px solid var(--border-color);
   }
 
   .provider-logo-img {
@@ -755,106 +1063,282 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     background-color: var(--text-color);
     color: var(--bg-color);
     font-weight: 600;
-    font-size: 0.75rem;
-    border-radius: 50%;
-    margin: -4px;
+    font-size: 0.625rem;
+    border-radius: 4px;
+    margin: -3px;
+  }
+
+  .model-name-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
   }
 
   .model-title {
-    font-family: monospace;
-    font-size: 0.875rem;
+    font-family: 'JetBrains Mono', 'Menlo', monospace;
+    font-size: 0.8125rem;
     font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mode-badge {
+    font-size: 0.625rem;
+    font-weight: 600;
+    padding: 0.125rem 0.375rem;
+    background: var(--bg-tertiary);
+    color: var(--muted-color);
+    border-radius: 4px;
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
   }
 
   .context-cell {
-    color: var(--contrast);
-    font-weight: 500;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.8125rem;
   }
 
   .cost-cell {
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.8125rem;
+  }
+
+  /* Detail Panel */
+  .detail-panel {
+    padding: 1.5rem;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+  }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .detail-section { }
+
+  .detail-heading {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted-color);
+    margin: 0 0 0.75rem 0;
+  }
+
+  .detail-unit {
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .pricing-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+
+  .pricing-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.625rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .pricing-label {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: var(--muted-color);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .pricing-value {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--text-color);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .info-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.375rem 0;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .info-row:last-child { border-bottom: none; }
+
+  .info-label {
+    font-size: 0.8125rem;
     color: var(--muted-color);
   }
 
-  .code-block {
-    background-color: var(--code-bg);
-    border-top: 1px solid var(--border-color);
-    margin: 0;
-    padding: 1.5rem;
-    overflow-x: auto;
+  .info-value {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-color);
+    font-family: 'JetBrains Mono', monospace;
   }
 
-  .code-block pre {
+  .feature-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+
+  .feature-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--muted-color);
+  }
+
+  .feature-item.supported { color: var(--text-color); }
+
+  /* Code snippet */
+  .detail-code-section {
+    background: var(--code-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+  }
+
+  .code-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.625rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+  }
+
+  .code-header-row .detail-heading { margin: 0; }
+
+  .copy-code-btn {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.25rem 0.625rem;
+    background: var(--litellm-primary);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .copy-code-btn:hover { opacity: 0.85; }
+
+  .code-snippet {
     margin: 0;
-    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-    font-size: 0.875rem;
+    padding: 1rem;
+    font-family: 'JetBrains Mono', 'Menlo', monospace;
+    font-size: 0.8125rem;
     line-height: 1.6;
-    background-color: var(--code-bg) !important;
+    overflow-x: auto;
+    background: var(--code-bg);
+    color: var(--code-text);
   }
 
-  .code-block code {
-    color: var(--code-text) !important;
-    background-color: var(--code-bg) !important;
-    display: block;
+  .code-snippet code { display: block; }
+  .code-kw { color: #8b5cf6; }
+  .code-str { color: #10b981; }
+
+  @media (prefers-color-scheme: dark) {
+    .code-kw { color: #a78bfa; }
+    .code-str { color: #34d399; }
   }
 
-  /* Responsive Design */
+  .detail-actions {
+    display: flex;
+    gap: 1rem;
+  }
+
+  .detail-action-link {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--muted-color);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+
+  .detail-action-link:hover { color: var(--litellm-primary); }
+
+  /* Skeleton */
+  .skeleton-table {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: var(--border-color);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .skeleton-row {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    background: var(--card-bg);
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+
+  .skeleton-cell {
+    height: 1rem;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    flex: 1;
+  }
+
+  .skeleton-cell.wide { flex: 3; }
+
+  @keyframes shimmer {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  /* Responsive */
+  .th-hide-mobile, .td-hide-mobile { }
+
+  @media (max-width: 900px) {
+    .th-hide-mobile, .td-hide-mobile { display: none; }
+  }
+
   @media (max-width: 768px) {
-    .hero {
-      padding: 2rem 1rem;
-    }
-
-    .hero-title {
-      font-size: 2.5rem;
-    }
-
-    .hero-subtitle {
-      font-size: 1rem;
-    }
-
-    .cta-buttons {
-      flex-direction: column;
-      width: 100%;
-    }
-
-    .btn {
-      width: 100%;
-    }
-
-    .search-bar-container {
-      flex-direction: column;
-    }
-
-    .advanced-filters {
-      flex-direction: column;
-      width: 100%;
-    }
-
-    .filter-item-inline {
-      width: 100%;
-    }
-
-    .filter-input {
-      flex: 1;
-      width: auto;
-    }
-
-    th, td {
-      padding: 0.75rem 1rem;
-      font-size: 0.875rem;
-    }
-
-    .model-name {
-      min-width: 200px;
-    }
-
-    .provider-avatar {
-      width: 32px;
-      height: 32px;
-      padding: 4px;
-    }
-
-    .model-title {
-      font-size: 0.875rem;
-    }
+    .hero { padding: 2.5rem 1rem 1.5rem; }
+    .hero-title { font-size: 2rem; }
+    .hero-subtitle { font-size: 1rem; }
+    .cta-buttons { flex-direction: column; width: 100%; max-width: 320px; margin: 0 auto; }
+    .btn { width: 100%; }
+    .search-section { padding: 0 1rem; }
+    .search-bar-container { flex-direction: column; }
+    .filters-row { grid-template-columns: 1fr; }
+    .table-container { padding: 0 1rem; }
+    th, td { padding: 0.5rem 0.625rem; font-size: 0.8125rem; }
+    .model-name { min-width: 180px; }
+    .trust-logos { gap: 1.5rem; }
+    .detail-grid { grid-template-columns: 1fr; }
   }
 </style>

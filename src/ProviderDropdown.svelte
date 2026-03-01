@@ -109,7 +109,7 @@
 <style>
   .provider-dropdown {
     position: relative;
-    min-width: 280px;
+    min-width: 240px;
   }
 
   .dropdown-trigger {
@@ -118,16 +118,16 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0.875rem 1rem;
-    font-size: 1rem;
-    border: 1px solid var(--border-color-strong);
-    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    font-size: 0.9375rem;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
     background-color: var(--bg-color);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
     font-family: inherit;
     color: var(--text-color);
-    height: 48px;
+    height: 44px;
     box-sizing: border-box;
   }
 
