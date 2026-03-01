@@ -35,6 +35,9 @@
   // Copy toast
   let copiedModel = "";
 
+  // Quick start tab state per model
+  let codeTabStates: Record<string, "sdk" | "proxy"> = {};
+
   onMount(() => {
     const urlParams = new URLSearchParams(window.location.search);
     query = urlParams.get("q") ?? "";
@@ -329,14 +332,14 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
 
   <!-- Trust Logos -->
   <div class="trust-section">
-    <p class="trust-label">Powering AI infrastructure at</p>
+    <p class="trust-label">Trusted by leading teams</p>
     <div class="trust-logos">
-      <span class="trust-logo">NASA</span>
-      <span class="trust-logo">Adobe</span>
-      <span class="trust-logo">Netflix</span>
-      <span class="trust-logo">Stripe</span>
-      <span class="trust-logo">NVIDIA</span>
-      <span class="trust-logo">Cruise</span>
+      <img class="trust-logo-img" src="https://github.com/user-attachments/assets/f7296d4f-9fbd-460d-9d05-e4df31697c4b" alt="Stripe" height="28" />
+      <img class="trust-logo-img" src="https://github.com/user-attachments/assets/caf270a2-5aee-45c4-8222-41a2070c4f19" alt="Google ADK" height="28" />
+      <img class="trust-logo-img" src="https://github.com/user-attachments/assets/0be4bd8a-7cfa-48d3-9090-f415fe948280" alt="Greptile" height="28" />
+      <img class="trust-logo-img" src="https://github.com/user-attachments/assets/a6150c4c-149e-4cae-888b-8b92be6e003f" alt="OpenHands" height="28" />
+      <span class="trust-logo-text">Netflix</span>
+      <img class="trust-logo-img" src="https://github.com/user-attachments/assets/c02f7be0-8c2e-4d27-aea7-7c024bfaebc0" alt="OpenAI Agents SDK" height="28" />
     </div>
   </div>
 
@@ -587,20 +590,49 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
                       </div>
                     </div>
 
-                    <!-- Code snippet -->
+                    <!-- Code snippet with tabs -->
                     <div class="detail-code-section">
                       <div class="code-header-row">
-                        <h4 class="detail-heading">Quick Start</h4>
-                        <button class="copy-code-btn" on:click|stopPropagation={() => copyToClipboard(`from litellm import completion\n\nresponse = completion(\n    model="${getDisplayModelName(name, litellm_provider)}",\n    messages=[{"role": "user", "content": "Hello!"}]\n)`)}>
-                          {copiedModel.includes("from litellm") ? "Copied!" : "Copy"}
-                        </button>
+                        <div class="code-tabs">
+                          <button
+                            class="code-tab"
+                            class:active={!codeTabStates[name] || codeTabStates[name] === "sdk"}
+                            on:click|stopPropagation={() => { codeTabStates[name] = "sdk"; codeTabStates = codeTabStates; }}
+                          >Python SDK</button>
+                          <button
+                            class="code-tab"
+                            class:active={codeTabStates[name] === "proxy"}
+                            on:click|stopPropagation={() => { codeTabStates[name] = "proxy"; codeTabStates = codeTabStates; }}
+                          >AI Gateway (Proxy)</button>
+                        </div>
+                        {#if !codeTabStates[name] || codeTabStates[name] === "sdk"}
+                          <button class="copy-code-btn" on:click|stopPropagation={() => copyToClipboard(`from litellm import completion\n\nresponse = completion(\n    model="${getDisplayModelName(name, litellm_provider)}",\n    messages=[{"role": "user", "content": "Hello!"}]\n)`)}>
+                            {copiedModel.includes("from litellm") ? "Copied!" : "Copy"}
+                          </button>
+                        {:else}
+                          <button class="copy-code-btn" on:click|stopPropagation={() => copyToClipboard(`curl http://0.0.0.0:4000/v1/chat/completions \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer sk-1234" \\\n  -d '{\n    "model": "${getDisplayModelName(name, litellm_provider)}",\n    "messages": [{"role": "user", "content": "Hello!"}]\n  }'`)}>
+                            {copiedModel.includes("curl") ? "Copied!" : "Copy"}
+                          </button>
+                        {/if}
                       </div>
-                      <pre class="code-snippet"><code><span class="code-kw">from</span> litellm <span class="code-kw">import</span> completion
+                      {#if !codeTabStates[name] || codeTabStates[name] === "sdk"}
+                        <pre class="code-snippet"><code><span class="code-kw">from</span> litellm <span class="code-kw">import</span> completion
 
 response = completion(
     model=<span class="code-str">"{getDisplayModelName(name, litellm_provider)}"</span>,
     messages=[{`{`}<span class="code-str">"role"</span>: <span class="code-str">"user"</span>, <span class="code-str">"content"</span>: <span class="code-str">"Hello!"</span>{`}`}]
 )</code></pre>
+                      {:else}
+                        <pre class="code-snippet"><code><span class="code-comment"># Start proxy: litellm --model {getDisplayModelName(name, litellm_provider)}</span>
+
+curl http://0.0.0.0:4000/v1/chat/completions \
+  -H <span class="code-str">"Content-Type: application/json"</span> \
+  -H <span class="code-str">"Authorization: Bearer sk-1234"</span> \
+  -d <span class="code-str">'{`{`}
+    "model": "{getDisplayModelName(name, litellm_provider)}",
+    "messages": [{`{`}"role": "user", "content": "Hello!"{`}`}]
+  {`}`}'</span></code></pre>
+                      {/if}
                     </div>
 
                     <!-- Actions -->
@@ -740,18 +772,41 @@ response = completion(
 
   .trust-logos {
     display: flex;
-    gap: 2.5rem;
+    gap: 2rem;
     justify-content: center;
     align-items: center;
     flex-wrap: wrap;
   }
 
-  .trust-logo {
-    font-size: 1rem;
+  .trust-logo-img {
+    height: 28px;
+    object-fit: contain;
+    opacity: 0.55;
+    filter: grayscale(100%);
+    transition: all 0.2s ease;
+  }
+
+  .trust-logo-img:hover {
+    opacity: 0.9;
+    filter: grayscale(0%);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .trust-logo-img {
+      filter: grayscale(100%) brightness(2);
+      opacity: 0.5;
+    }
+    .trust-logo-img:hover {
+      filter: grayscale(0%) brightness(1.2);
+      opacity: 0.9;
+    }
+  }
+
+  .trust-logo-text {
+    font-size: 1.125rem;
     font-weight: 700;
     color: var(--border-color-strong);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    letter-spacing: 0.04em;
   }
 
   /* Search Section */
@@ -1235,6 +1290,47 @@ response = completion(
 
   .code-header-row .detail-heading { margin: 0; }
 
+  .code-tabs {
+    display: flex;
+    gap: 0;
+  }
+
+  .code-tab {
+    padding: 0.375rem 0.875rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--muted-color);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .code-tab:first-child {
+    border-radius: 6px 0 0 6px;
+  }
+
+  .code-tab:last-child {
+    border-radius: 0 6px 6px 0;
+    border-left: none;
+  }
+
+  .code-tab.active {
+    background: var(--litellm-primary);
+    border-color: var(--litellm-primary);
+    color: white;
+  }
+
+  .code-tab:hover:not(.active) {
+    background: var(--hover-bg);
+    color: var(--text-color);
+  }
+
+  .code-comment {
+    color: var(--muted-color);
+    font-style: italic;
+  }
+
   .copy-code-btn {
     font-size: 0.75rem;
     font-weight: 600;
@@ -1338,7 +1434,8 @@ response = completion(
     .table-container { padding: 0 1rem; }
     th, td { padding: 0.5rem 0.625rem; font-size: 0.8125rem; }
     .model-name { min-width: 180px; }
-    .trust-logos { gap: 1.5rem; }
+    .trust-logos { gap: 1.25rem; }
+    .trust-logo-img { height: 22px; }
     .detail-grid { grid-template-columns: 1fr; }
   }
 </style>
