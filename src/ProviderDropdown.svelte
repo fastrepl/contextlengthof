@@ -258,7 +258,7 @@
     height: 24px;
     border-radius: 50%;
     object-fit: contain;
-    background-color: var(--bg-color);
+    background-color: #ffffff;
     padding: 3px;
     flex-shrink: 0;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);

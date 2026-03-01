@@ -340,6 +340,23 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
       <img class="trust-logo-img" src="https://github.com/user-attachments/assets/a6150c4c-149e-4cae-888b-8b92be6e003f" alt="OpenHands" height="28" />
       <span class="trust-logo-text">Netflix</span>
       <img class="trust-logo-img" src="https://github.com/user-attachments/assets/c02f7be0-8c2e-4d27-aea7-7c024bfaebc0" alt="OpenAI Agents SDK" height="28" />
+      <img class="trust-logo-img trust-logo-svg" src="https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/adobe-text.svg" alt="Adobe" height="28" />
+      <span class="trust-logo-text trust-logo-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.381-.008.008 5.352 0 11.971V12c0 6.64 5.359 12 12 12 6.64 0 12-5.36 12-12 0-6.641-5.36-12-12-12zm0 20.801c-4.846.015-8.786-3.904-8.801-8.75V12c-.014-4.846 3.904-8.786 8.75-8.801H12c4.847-.014 8.786 3.904 8.801 8.75V12c.015 4.847-3.904 8.786-8.75 8.801H12zm5.44-11.76c0 1.359-1.12 2.479-2.481 2.479-1.366-.007-2.472-1.113-2.479-2.479 0-1.361 1.12-2.481 2.479-2.481 1.361 0 2.481 1.12 2.481 2.481zm0 5.919c0 1.36-1.12 2.48-2.481 2.48-1.367-.008-2.473-1.114-2.479-2.48 0-1.359 1.12-2.479 2.479-2.479 1.361-.001 2.481 1.12 2.481 2.479zm-5.919 0c0 1.36-1.12 2.48-2.479 2.48-1.368-.007-2.475-1.113-2.481-2.48 0-1.359 1.12-2.479 2.481-2.479 1.358-.001 2.479 1.12 2.479 2.479zm0-5.919c0 1.359-1.12 2.479-2.479 2.479-1.367-.007-2.475-1.112-2.481-2.479 0-1.361 1.12-2.481 2.481-2.481 1.358 0 2.479 1.12 2.479 2.481z"/></svg>
+        Twilio
+      </span>
+      <span class="trust-logo-text trust-logo-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="12"/><text x="12" y="16.5" text-anchor="middle" fill="white" font-size="13" font-weight="700" font-family="Arial,sans-serif">Z</text></svg>
+        Zurich
+      </span>
+      <img class="trust-logo-img trust-logo-svg" src="https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/zapier-text.svg" alt="Zapier" height="28" />
+      <span class="trust-logo-text">Rocket Money</span>
+      <span class="trust-logo-text" style="font-style: italic;">Lemonade</span>
+      <span class="trust-logo-text trust-logo-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.47 6.07a6.26 6.26 0 00-3.24-3.47A6.04 6.04 0 0011.32 2c-3.36 0-6.2 2.76-6.2 6.36a7.1 7.1 0 001.65 4.52L12 22l5.24-9.12a7.1 7.1 0 001.64-4.52c0-.77-.14-1.54-.41-2.29zM12 11.13a2.89 2.89 0 110-5.78 2.89 2.89 0 010 5.78z"/></svg>
+        The Weather Company
+      </span>
+      <span class="trust-logo-text" style="font-weight: 300; letter-spacing: 0.15em;">samsara</span>
     </div>
   </div>
 
@@ -809,6 +826,37 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     letter-spacing: 0.04em;
   }
 
+  .trust-logo-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .trust-logo-icon svg {
+    flex-shrink: 0;
+  }
+
+  .trust-logo-svg {
+    filter: brightness(0);
+    opacity: 0.45;
+  }
+
+  .trust-logo-svg:hover {
+    filter: brightness(0);
+    opacity: 0.8;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .trust-logo-svg {
+      filter: brightness(0) invert(1);
+      opacity: 0.5;
+    }
+    .trust-logo-svg:hover {
+      filter: brightness(0) invert(1);
+      opacity: 0.9;
+    }
+  }
+
   /* Search Section */
   .search-section {
     max-width: 1400px;
@@ -1090,7 +1138,7 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     width: 28px;
     height: 28px;
     border-radius: 6px;
-    background-color: var(--bg-secondary);
+    background-color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;

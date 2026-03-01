@@ -457,7 +457,7 @@
 
   .provider-avatar {
     width: 40px; height: 40px; border-radius: 10px;
-    background-color: var(--bg-secondary); display: flex; align-items: center;
+    background-color: #ffffff; display: flex; align-items: center;
     justify-content: center; flex-shrink: 0; overflow: hidden;
     position: relative; padding: 6px; border: 1px solid var(--border-color);
   }
