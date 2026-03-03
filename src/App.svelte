@@ -44,6 +44,9 @@
       e.preventDefault();
       searchInput?.focus();
     }
+    if (e.key === "Escape" && document.activeElement === searchInput) {
+      searchInput?.blur();
+    }
   }
 
   // Quick start tab state per model
@@ -521,7 +524,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
                     {/if}
                   </div>
                   <div class="model-name-group">
-                    <span class="model-title">{getDisplayModelName(name, litellm_provider)}</span>
+                    <span class="model-title" title={getDisplayModelName(name, litellm_provider)}>{getDisplayModelName(name, litellm_provider)}</span>
                     {#if mode}
                       <span class="mode-badge">{getModeLabel(mode)}</span>
                     {/if}
@@ -1092,6 +1095,9 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     background-color: var(--bg-secondary);
     white-space: nowrap;
     user-select: none;
+    position: sticky;
+    top: 63px;
+    z-index: 10;
   }
 
   .th-model { padding-left: 1rem; }
@@ -1121,7 +1127,10 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     cursor: pointer;
   }
 
-  tbody tr.model-row:hover { background-color: var(--hover-bg); }
+  tbody tr.model-row:hover {
+    background-color: var(--hover-bg);
+    box-shadow: inset 3px 0 0 var(--litellm-primary);
+  }
   tbody tr.model-row.expanded { background-color: var(--bg-secondary); }
   tbody tr.model-row:last-child { border-bottom: none; }
 

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { fade } from "svelte/transition";
   import App from "./App.svelte";
   import Providers from "./Providers.svelte";
   import Cookbook from "./Cookbook.svelte";
@@ -44,6 +45,7 @@
     activeTab = tab;
     closeMobileMenu();
     trackTabChange(tab);
+    window.scrollTo({ top: 0, behavior: "smooth" });
     
     if (updateUrl) {
       const path = getPathFromTab(tab);
@@ -63,6 +65,23 @@
   let providerEndpointCount = 0;
   let modelCount = 0;
   let statsLoading = true;
+
+  let displayModelCount = 0;
+  let displayProviderCount = 0;
+  let displayEndpointCount = 0;
+  let displayComboCount = 0;
+
+  function animateValue(start: number, end: number, duration: number, setter: (v: number) => void) {
+    const startTime = performance.now();
+    function step(now: number) {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setter(Math.round(start + (end - start) * eased));
+      if (progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
 
   onMount(async () => {
     initAnalytics();
@@ -109,6 +128,11 @@
       modelCount = Object.keys(modelsData).length;
       
       statsLoading = false;
+
+      animateValue(0, modelCount, 800, (v) => displayModelCount = v);
+      animateValue(0, providerCount, 600, (v) => displayProviderCount = v);
+      animateValue(0, endpointCount, 600, (v) => displayEndpointCount = v);
+      animateValue(0, providerEndpointCount, 700, (v) => displayComboCount = v);
     } catch (error) {
       console.error("Failed to load statistics:", error);
       statsLoading = false;
@@ -127,10 +151,10 @@
   <!-- Header -->
   <header class="header">
     <div class="header-content">
-      <div class="logo-section-header">
+      <a href="/" class="logo-section-header" on:click|preventDefault={() => selectTab("models")}>
         <span class="logo-emoji">🚅</span>
         <span class="logo-text-header">LiteLLM</span>
-      </div>
+      </a>
 
       <!-- Desktop Navigation -->
       <div class="desktop-nav">
@@ -256,19 +280,19 @@
     <div class="stats-section">
       <div class="stats-container">
         <button class="stat-card" on:click={() => selectTab("models")}>
-          <div class="stat-value">{modelCount.toLocaleString()}</div>
+          <div class="stat-value">{displayModelCount.toLocaleString()}</div>
           <div class="stat-label">Models Supported</div>
         </button>
         <button class="stat-card" on:click={() => selectTab("providers")}>
-          <div class="stat-value">{providerCount}</div>
+          <div class="stat-value">{displayProviderCount.toLocaleString()}</div>
           <div class="stat-label">Providers</div>
         </button>
         <button class="stat-card" on:click={() => selectTab("providers")}>
-          <div class="stat-value">{endpointCount}</div>
+          <div class="stat-value">{displayEndpointCount.toLocaleString()}</div>
           <div class="stat-label">Unique Endpoints</div>
         </button>
         <button class="stat-card" on:click={() => selectTab("providers")}>
-          <div class="stat-value">{providerEndpointCount}</div>
+          <div class="stat-value">{displayComboCount.toLocaleString()}</div>
           <div class="stat-label">Provider + Endpoint Combos</div>
         </button>
       </div>
@@ -276,15 +300,19 @@
   {/if}
 
   <!-- Content -->
-  {#if activeTab === "models"}
-    <App />
-  {:else if activeTab === "providers"}
-    <Providers />
-  {:else if activeTab === "cookbook"}
-    <Cookbook />
-  {:else if activeTab === "guardrails"}
-    <Guardrails />
-  {/if}
+  {#key activeTab}
+    <div in:fade={{ duration: 150, delay: 50 }}>
+      {#if activeTab === "models"}
+        <App />
+      {:else if activeTab === "providers"}
+        <Providers />
+      {:else if activeTab === "cookbook"}
+        <Cookbook />
+      {:else if activeTab === "guardrails"}
+        <Guardrails />
+      {/if}
+    </div>
+  {/key}
 
   <!-- Request Form Modal -->
   <RequestForm bind:this={requestForm} />
@@ -299,6 +327,22 @@
     background-color: var(--bg-color);
     color: var(--text-color);
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  :global(::selection) {
+    background: rgba(99, 102, 241, 0.2);
+    color: inherit;
+  }
+
+  :global(*:focus-visible) {
+    outline: 2px solid var(--litellm-primary);
+    outline-offset: 2px;
+  }
+
+  :global(input:focus-visible),
+  :global(textarea:focus-visible),
+  :global(select:focus-visible) {
+    outline: none;
   }
 
   :global(*::-webkit-scrollbar) {
@@ -420,6 +464,8 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    text-decoration: none;
+    color: inherit;
   }
 
   .logo-emoji {
