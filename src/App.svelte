@@ -35,6 +35,17 @@
   // Copy toast
   let copiedModel = "";
 
+  // Search input ref and focus tracking
+  let searchInput: HTMLInputElement;
+  let searchFocused = false;
+
+  function handleKeydown(e: KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      e.preventDefault();
+      searchInput?.focus();
+    }
+  }
+
   // Quick start tab state per model
   let codeTabStates: Record<string, "sdk" | "proxy"> = {};
 
@@ -295,6 +306,8 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   }
 </script>
 
+<svelte:window on:keydown={handleKeydown} />
+
 <main class="container">
   <!-- Hero Section -->
   <div class="hero">
@@ -370,7 +383,10 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
         </svg>
         <input
           id="query"
+          bind:this={searchInput}
           bind:value={query}
+          on:focus={() => { searchFocused = true; }}
+          on:blur={() => { searchFocused = false; }}
           type="text"
           autocomplete="off"
           name="query"
@@ -382,6 +398,9 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
           <button class="search-clear" on:click={() => { query = ""; }} type="button">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
           </button>
+        {/if}
+        {#if !query && !searchFocused}
+          <kbd class="search-shortcut">⌘K</kbd>
         {/if}
       </div>
       
@@ -924,6 +943,26 @@ curl http://0.0.0.0:4000/v1/chat/completions \
   }
 
   .search-clear:hover { color: var(--text-color); background: var(--bg-tertiary); }
+
+  .search-shortcut {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.125rem 0.4375rem;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: var(--muted-color);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    pointer-events: none;
+    line-height: 1.4;
+  }
 
   /* Filters */
   .filters-row {
