@@ -7,14 +7,48 @@
   import ProviderDropdown from "./ProviderDropdown.svelte";
   import { trackSearch } from "./analytics";
 
-  type Item = {
+  type ModelItem = {
     name: string;
+    litellm_provider?: string;
+    mode?: string;
+    max_input_tokens?: number;
+    max_output_tokens?: number;
+    input_cost_per_token?: number;
+    output_cost_per_token?: number;
+    cache_creation_input_token_cost?: number;
+    cache_read_input_token_cost?: number;
+    supports_function_calling?: boolean;
+    supports_vision?: boolean;
+    supports_response_schema?: boolean;
+    supports_tool_choice?: boolean;
+    supports_parallel_function_calling?: boolean;
+    supports_audio_input?: boolean;
+    supports_prompt_caching?: boolean;
     [key: string]: any;
   };
 
   type ResultItem = {
     refIndex: number;
-    item: any;
+    item: ModelItem;
+  };
+
+  type SortColumn =
+    | ""
+    | "context"
+    | "input"
+    | "output"
+    | "cache_read"
+    | "cache_write";
+
+  type FilterChip = {
+    key: "query" | "provider" | "minInput" | "minOutput" | "sort";
+    label: string;
+  };
+
+  type CodeSamples = {
+    summary: string;
+    sdk: string;
+    proxy: string;
   };
 
   const REPO_FULL_NAME = "BerriAI/litellm";
@@ -23,81 +57,45 @@
   const RESOURCE_BACKUP_NAME = "model_prices_and_context_window_backup.json";
   const RESOURCE_PATH = `${RESOURCE_NAME}`;
   const RESOURCE_BACKUP_PATH = `litellm/${RESOURCE_BACKUP_NAME}`;
+  const SEARCH_KEYS = [
+    { name: "name", weight: 1.5 },
+    "mode",
+    "litellm_provider",
+  ];
+  const SORTABLE_COLUMNS = new Set<SortColumn>([
+    "",
+    "context",
+    "input",
+    "output",
+    "cache_read",
+    "cache_write",
+  ]);
+
   let providers: string[] = [];
-  let selectedProvider: string = "";
+  let selectedProvider = "";
   let maxInputTokens: number | null = null;
   let maxOutputTokens: number | null = null;
-
-  // Sorting state
-  let sortColumn: string = "";
+  let sortColumn: SortColumn = "";
   let sortDirection: "asc" | "desc" = "asc";
-
-  // Copy toast
   let copiedModel = "";
-
-  // Search input ref and focus tracking
+  let copiedCodeKey = "";
   let searchInput: HTMLInputElement;
   let searchFocused = false;
-
-  function handleKeydown(e: KeyboardEvent) {
-    if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-      e.preventDefault();
-      searchInput?.focus();
-    }
-    if (e.key === "Escape" && document.activeElement === searchInput) {
-      searchInput?.blur();
-    }
-  }
-
-  // Quick start tab state per model
+  let isMac = false;
   let codeTabStates: Record<string, "sdk" | "proxy"> = {};
-
-  onMount(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    query = urlParams.get("q") ?? "";
-
-    fetch(
-      `https://api.github.com/repos/${REPO_FULL_NAME}/commits/${DEFAULT_BRANCH}`,
-      {
-        headers: {
-          Accept: "application/vnd.github.VERSION.sha",
-        },
-      },
-    )
-      .then((res) => res.text())
-      .then((text) => {
-        sha = text;
-      });
-
-    fetch(
-      `https://raw.githubusercontent.com/${REPO_FULL_NAME}/main/${RESOURCE_PATH}`,
-    )
-      .then((res) => res.text())
-      .then((text) => {
-        lines = text.split("\n");
-        const items: Item[] = Object.entries(JSON.parse(text)).map(
-          ([k, v]: any) => ({ name: k, ...v }),
-        );
-
-        providers = [...new Set(items.map((i) => i.litellm_provider))];
-        providers.sort();
-
-        index = new Fuse(items, {
-          threshold: 0.3,
-          keys: [
-            {
-              name: "name",
-              weight: 1.5,
-            },
-            "mode",
-            "litellm_provider",
-          ],
-        });
-
-        results = items.map((item, refIndex) => ({ item, refIndex }));
-        loading = false;
-      });
-  });
+  let sha: string | null = null;
+  let query = "";
+  let lines: string[] = [];
+  let index: Fuse<ModelItem> | null = null;
+  let results: ResultItem[] = [];
+  let loading = true;
+  let loadError = "";
+  let expandedRows = new Set<string>();
+  let initialized = false;
+  let totalModels = 0;
+  let activeFilters: FilterChip[] = [];
+  let nearbyMatches: ModelItem[] = [];
+  let platformShortcut = "Ctrl K";
 
   const debounce = (callback: Function, wait = 500) => {
     let timeout: ReturnType<typeof setTimeout>;
@@ -108,14 +106,156 @@
     };
   };
 
-  const trackSearchDebounced = debounce((query: string, provider: string, resultsCount: number) => {
-    if (query) {
-      trackSearch(query, provider, resultsCount);
-    }
-  }, 1000);
+  const trackSearchDebounced = debounce(
+    (nextQuery: string, provider: string, resultsCount: number) => {
+      if (nextQuery) {
+        trackSearch(nextQuery, provider, resultsCount);
+      }
+    },
+    1000,
+  );
 
-  const getIssueUrlForAdd = (query: string) => {
-    const q = encodeURIComponent(query);
+  onMount(async () => {
+    isMac = /Mac|iPhone|iPad/i.test(navigator.platform);
+    hydrateFromUrl();
+    initialized = true;
+    await loadModels();
+  });
+
+  $: if (index) {
+    filterResults(query, selectedProvider, maxInputTokens, maxOutputTokens);
+  }
+
+  $: if (initialized) {
+    syncUrlState();
+  }
+
+  $: activeFilters = getActiveFilters();
+  $: nearbyMatches = getNearbyMatches();
+  $: platformShortcut = isMac ? "⌘K" : "Ctrl K";
+
+  function handleKeydown(event: KeyboardEvent) {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      searchInput?.focus();
+    }
+
+    if (event.key === "Escape" && document.activeElement === searchInput) {
+      searchInput?.blur();
+    }
+  }
+
+  function hydrateFromUrl() {
+    const urlParams = new URLSearchParams(window.location.search);
+    query = urlParams.get("q") ?? "";
+    selectedProvider = urlParams.get("provider") ?? "";
+    maxInputTokens = parsePositiveNumber(urlParams.get("minInput"));
+    maxOutputTokens = parsePositiveNumber(urlParams.get("minOutput"));
+
+    const nextSort = (urlParams.get("sort") ?? "") as SortColumn;
+    sortColumn = SORTABLE_COLUMNS.has(nextSort) ? nextSort : "";
+    sortDirection = urlParams.get("dir") === "desc" ? "desc" : "asc";
+  }
+
+  function parsePositiveNumber(value: string | null): number | null {
+    if (!value) return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  }
+
+  function syncUrlState() {
+    const url = new URL(window.location.href);
+
+    setSearchParam(url, "q", query);
+    setSearchParam(url, "provider", selectedProvider);
+    setSearchParam(url, "minInput", maxInputTokens);
+    setSearchParam(url, "minOutput", maxOutputTokens);
+    setSearchParam(url, "sort", sortColumn);
+    setSearchParam(url, "dir", sortColumn ? sortDirection : "");
+
+    const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+    if (nextUrl !== currentUrl) {
+      window.history.replaceState(window.history.state, "", nextUrl);
+    }
+  }
+
+  function setSearchParam(url: URL, key: string, value: string | number | null) {
+    if (value === null || value === "" || value === undefined) {
+      url.searchParams.delete(key);
+      return;
+    }
+
+    url.searchParams.set(key, String(value));
+  }
+
+  async function loadModels() {
+    loading = true;
+    loadError = "";
+
+    try {
+      const shaPromise = fetch(
+        `https://api.github.com/repos/${REPO_FULL_NAME}/commits/${DEFAULT_BRANCH}`,
+        {
+          headers: {
+            Accept: "application/vnd.github.VERSION.sha",
+          },
+        },
+      )
+        .then((res) => (res.ok ? res.text() : null))
+        .catch(() => null);
+
+      const response = await fetch(
+        `https://raw.githubusercontent.com/${REPO_FULL_NAME}/${DEFAULT_BRANCH}/${RESOURCE_PATH}`,
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `The model catalog could not be loaded (${response.status}).`,
+        );
+      }
+
+      const text = await response.text();
+      lines = text.split("\n");
+
+      const items: ModelItem[] = Object.entries(JSON.parse(text)).map(
+        ([name, value]: [string, any]) => ({ name, ...value }),
+      );
+
+      providers = [
+        ...new Set(
+          items
+            .map((item) => item.litellm_provider)
+            .filter((provider): provider is string => Boolean(provider)),
+        ),
+      ].sort((a, b) => a.localeCompare(b));
+
+      index = new Fuse(items, {
+        threshold: 0.3,
+        keys: SEARCH_KEYS,
+      });
+
+      totalModels = items.length;
+      results = items.map((item, refIndex) => ({ item, refIndex }));
+      sha = await shaPromise;
+      filterResults(query, selectedProvider, maxInputTokens, maxOutputTokens);
+    } catch (error) {
+      console.error("Failed to load model catalog:", error);
+      loadError =
+        error instanceof Error
+          ? error.message
+          : "The model catalog could not be loaded.";
+      results = [];
+      providers = [];
+      index = null;
+    } finally {
+      loading = false;
+    }
+  }
+
+  const getIssueUrlForAdd = (requestedQuery: string) => {
+    const q = encodeURIComponent(requestedQuery);
     const body = encodeURIComponent(
       `Source: <SOURCE_URL>
 
@@ -131,9 +271,8 @@ We need to update both [${RESOURCE_NAME}](https://github.com/${REPO_FULL_NAME}/b
     const issue = `${repo}/issues/new?labels=bug,fastrepl`;
 
     const from = lines.findIndex((line) => line.includes(`"${name}":`)) + 1;
-
     const to =
-      lines.findIndex((line, i) => line.includes("}") && i > from - 1) + 1;
+      lines.findIndex((line, indexValue) => line.includes("}") && indexValue > from - 1) + 1;
 
     if (from > 0 && to > 0) {
       const body = encodeURIComponent(
@@ -144,40 +283,43 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
       );
 
       return `${issue}&title=Fix+%22${name}%22+entry+in+%22${RESOURCE_NAME}%22&body=${body}`;
-    } else {
-      return `${issue}&title=Fix+%22${name}%22+entry+in+%22${RESOURCE_NAME}%22`;
     }
+
+    return `${issue}&title=Fix+%22${name}%22+entry+in+%22${RESOURCE_NAME}%22`;
   };
-
-  let sha: string | null = null;
-  let query = "";
-  let lines: string[] = [];
-  let index: Fuse<Item>;
-  let results: ResultItem[] = [];
-  let loading = true;
-  let expandedRows = new Set<string>();
-
-  $: {
-    if (index) {
-      filterResults(query, selectedProvider, maxInputTokens, maxOutputTokens);
-    }
-  }
 
   function copyToClipboard(text: string) {
     navigator.clipboard.writeText(text).then(() => {
       copiedModel = text;
-      setTimeout(() => { copiedModel = ""; }, 1500);
+      setTimeout(() => {
+        copiedModel = "";
+      }, 1500);
     });
   }
 
-  function getDisplayModelName(name: string, litellm_provider: string): string {
-    if (name.includes('/')) {
+  function copyCode(code: string, key: string) {
+    navigator.clipboard.writeText(code).then(() => {
+      copiedCodeKey = key;
+      setTimeout(() => {
+        copiedCodeKey = "";
+      }, 1500);
+    });
+  }
+
+  function getDisplayModelName(name: string, litellmProvider?: string): string {
+    if (name.includes("/")) {
       return name;
     }
-    if (litellm_provider && litellm_provider.startsWith('vertex_ai')) {
+
+    if (litellmProvider && litellmProvider.startsWith("vertex_ai")) {
       return `vertex_ai/${name}`;
     }
+
     return name;
+  }
+
+  function getDetailId(name: string) {
+    return `detail-${name.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
   }
 
   function toggleRow(name: string) {
@@ -186,37 +328,100 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     } else {
       expandedRows.add(name);
     }
+
     expandedRows = expandedRows;
   }
 
-  function handleSort(column: string) {
+  function handleSort(column: SortColumn) {
     if (sortColumn === column) {
       sortDirection = sortDirection === "asc" ? "desc" : "asc";
     } else {
       sortColumn = column;
       sortDirection = "asc";
     }
+
     applySorting();
   }
 
-  function getSortValue(item: any, column: string): number {
+  function getAriaSort(column: SortColumn) {
+    if (sortColumn !== column) return "none";
+    return sortDirection === "asc" ? "ascending" : "descending";
+  }
+
+  function getSortValue(item: ModelItem, column: SortColumn): number {
     switch (column) {
-      case "context": return item.max_input_tokens || 0;
-      case "input": return item.input_cost_per_token || 0;
-      case "output": return item.output_cost_per_token || 0;
-      case "cache_read": return item.cache_read_input_token_cost || 0;
-      case "cache_write": return item.cache_creation_input_token_cost || 0;
-      default: return 0;
+      case "context":
+        return item.max_input_tokens || 0;
+      case "input":
+        return item.input_cost_per_token || 0;
+      case "output":
+        return item.output_cost_per_token || 0;
+      case "cache_read":
+        return item.cache_read_input_token_cost || 0;
+      case "cache_write":
+        return item.cache_creation_input_token_cost || 0;
+      default:
+        return 0;
     }
   }
 
   function applySorting() {
     if (!sortColumn) return;
+
     results = [...results].sort((a, b) => {
       const aVal = getSortValue(a.item, sortColumn);
       const bVal = getSortValue(b.item, sortColumn);
       return sortDirection === "asc" ? aVal - bVal : bVal - aVal;
     });
+  }
+
+  function clearAllFilters() {
+    query = "";
+    selectedProvider = "";
+    maxInputTokens = null;
+    maxOutputTokens = null;
+    sortColumn = "";
+    sortDirection = "asc";
+  }
+
+  function clearFilter(key: FilterChip["key"]) {
+    if (key === "query") query = "";
+    if (key === "provider") selectedProvider = "";
+    if (key === "minInput") maxInputTokens = null;
+    if (key === "minOutput") maxOutputTokens = null;
+    if (key === "sort") {
+      sortColumn = "";
+      sortDirection = "asc";
+    }
+  }
+
+  function getActiveFilters(): FilterChip[] {
+    const filters: FilterChip[] = [];
+
+    if (query) filters.push({ key: "query", label: `Search: ${query}` });
+    if (selectedProvider) {
+      filters.push({ key: "provider", label: `Provider: ${selectedProvider}` });
+    }
+    if (maxInputTokens !== null) {
+      filters.push({
+        key: "minInput",
+        label: `Min input: ${maxInputTokens.toLocaleString()}`,
+      });
+    }
+    if (maxOutputTokens !== null) {
+      filters.push({
+        key: "minOutput",
+        label: `Min output: ${maxOutputTokens.toLocaleString()}`,
+      });
+    }
+    if (sortColumn) {
+      filters.push({
+        key: "sort",
+        label: `Sorted by ${sortColumn.replace("_", " ")} (${sortDirection})`,
+      });
+    }
+
+    return filters;
   }
 
   function formatCost(costPerToken: number | undefined): string {
@@ -233,7 +438,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     return tokens.toString();
   }
 
-  function getFeatureBadges(item: any): string[] {
+  function getFeatureBadges(item: ModelItem): string[] {
     const badges: string[] = [];
     if (item.supports_function_calling) badges.push("Functions");
     if (item.supports_vision) badges.push("Vision");
@@ -247,64 +452,165 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
 
   function getModeLabel(mode: string | undefined): string {
     if (!mode) return "";
+
     const labels: Record<string, string> = {
-      "chat": "Chat",
-      "completion": "Completion",
-      "embedding": "Embedding",
-      "image_generation": "Image Gen",
-      "audio_transcription": "Transcription",
-      "audio_speech": "TTS",
-      "moderation": "Moderation",
-      "rerank": "Rerank",
+      chat: "Chat",
+      completion: "Completion",
+      embedding: "Embedding",
+      image_generation: "Image Gen",
+      audio_transcription: "Transcription",
+      audio_speech: "TTS",
+      moderation: "Moderation",
+      rerank: "Rerank",
     };
+
     return labels[mode] || mode;
   }
 
-  function filterResults(
-    query: string,
-    selectedProvider: string,
-    maxInputTokens: number | null,
-    maxOutputTokens: number | null,
-  ) {
-    if (index) {
-      let filteredResults: Item[];
+  function getCodeSamples(
+    name: string,
+    litellmProvider: string | undefined,
+    mode: string | undefined,
+  ): CodeSamples {
+    const model = getDisplayModelName(name, litellmProvider || "");
 
-      const allItems = index["_docs"] as Item[];
+    switch (mode) {
+      case "embedding":
+        return {
+          summary: "Embedding quickstart",
+          sdk: `from litellm import embedding\n\nresponse = embedding(\n    model="${model}",\n    input=["LiteLLM enterprise model catalog"]\n)`,
+          proxy: `curl http://0.0.0.0:4000/v1/embeddings \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer sk-1234" \\\n  -d '{\n    "model": "${model}",\n    "input": ["LiteLLM enterprise model catalog"]\n  }'`,
+        };
+      case "image_generation":
+        return {
+          summary: "Image generation quickstart",
+          sdk: `from litellm import image_generation\n\nresponse = image_generation(\n    model="${model}",\n    prompt="A polished enterprise dashboard for AI teams"\n)`,
+          proxy: `curl http://0.0.0.0:4000/v1/images/generations \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer sk-1234" \\\n  -d '{\n    "model": "${model}",\n    "prompt": "A polished enterprise dashboard for AI teams"\n  }'`,
+        };
+      case "audio_transcription":
+        return {
+          summary: "Transcription quickstart",
+          sdk: `from litellm import transcription\n\nresponse = transcription(\n    model="${model}",\n    file=open("meeting.wav", "rb")\n)`,
+          proxy: `curl http://0.0.0.0:4000/v1/audio/transcriptions \\\n  -H "Authorization: Bearer sk-1234" \\\n  -F "model=${model}" \\\n  -F "file=@meeting.wav"`,
+        };
+      case "audio_speech":
+        return {
+          summary: "Speech synthesis quickstart",
+          sdk: `from litellm import speech\n\nresponse = speech(\n    model="${model}",\n    input="Welcome to the enterprise-ready LiteLLM catalog."\n)`,
+          proxy: `curl http://0.0.0.0:4000/v1/audio/speech \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer sk-1234" \\\n  -d '{\n    "model": "${model}",\n    "input": "Welcome to the enterprise-ready LiteLLM catalog."\n  }'`,
+        };
+      case "moderation":
+        return {
+          summary: "Moderation quickstart",
+          sdk: `from litellm import moderation\n\nresponse = moderation(\n    model="${model}",\n    input="Review this response before sending it to the user."\n)`,
+          proxy: `curl http://0.0.0.0:4000/v1/moderations \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer sk-1234" \\\n  -d '{\n    "model": "${model}",\n    "input": "Review this response before sending it to the user."\n  }'`,
+        };
+      case "rerank":
+        return {
+          summary: "Rerank quickstart",
+          sdk: `from litellm import rerank\n\nresponse = rerank(\n    model="${model}",\n    query="enterprise ai gateway",\n    documents=["LiteLLM proxy", "Model catalog", "Observability"]\n)`,
+          proxy: `curl http://0.0.0.0:4000/v1/rerank \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer sk-1234" \\\n  -d '{\n    "model": "${model}",\n    "query": "enterprise ai gateway",\n    "documents": ["LiteLLM proxy", "Model catalog", "Observability"]\n  }'`,
+        };
+      default:
+        return {
+          summary: "Chat completion quickstart",
+          sdk: `from litellm import completion\n\nresponse = completion(\n    model="${model}",\n    messages=[{"role": "user", "content": "Hello!"}]\n)`,
+          proxy: `curl http://0.0.0.0:4000/v1/chat/completions \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer sk-1234" \\\n  -d '{\n    "model": "${model}",\n    "messages": [{"role": "user", "content": "Hello!"}]\n  }'`,
+        };
+    }
+  }
 
-      filteredResults = allItems.filter(
-        (item) =>
-          (!selectedProvider || item.litellm_provider === selectedProvider) &&
-          (maxInputTokens === null ||
-            (item.max_input_tokens &&
-              item.max_input_tokens >= maxInputTokens)) &&
-          (maxOutputTokens === null ||
-            (item.max_output_tokens &&
-              item.max_output_tokens >= maxOutputTokens)),
+  function setCodeTab(name: string, tab: "sdk" | "proxy") {
+    codeTabStates[name] = tab;
+    codeTabStates = codeTabStates;
+  }
+
+  function getAllItems(): ModelItem[] {
+    if (!index) return [];
+    return (index as any)["_docs"] as ModelItem[];
+  }
+
+  function getNearbyMatches(): ModelItem[] {
+    if (!index || loading || loadError || results.length > 0) return [];
+
+    let candidates = getAllItems();
+
+    if (selectedProvider) {
+      candidates = candidates.filter(
+        (item) => item.litellm_provider === selectedProvider,
       );
+    }
 
-      if (query) {
-        const filteredIndex = new Fuse(filteredResults, {
-          threshold: 0.3,
-          keys: [
-            {
-              name: "name",
-              weight: 1.5,
-            },
-            "mode",
-            "litellm_provider",
-          ],
-        });
+    if (query) {
+      return new Fuse(candidates, {
+        threshold: 0.3,
+        keys: SEARCH_KEYS,
+      })
+        .search(query)
+        .slice(0, 3)
+        .map((result) => result.item);
+    }
 
-        const searchResults = filteredIndex.search(query);
-        filteredResults = searchResults.map((result) => result.item);
-      }
+    return [...candidates]
+      .sort(
+        (a, b) => (b.max_input_tokens || 0) - (a.max_input_tokens || 0),
+      )
+      .slice(0, 3);
+  }
 
-      results = filteredResults.map((item, refIndex) => ({ item, refIndex }));
-      loading = false;
+  function applySuggestedModel(model: ModelItem) {
+    query = getDisplayModelName(model.name, model.litellm_provider || "");
+    if (model.litellm_provider) {
+      selectedProvider = model.litellm_provider;
+    }
+    maxInputTokens = null;
+    maxOutputTokens = null;
+  }
 
-      if (sortColumn) applySorting();
+  function filterResults(
+    nextQuery: string,
+    provider: string,
+    minInput: number | null,
+    minOutput: number | null,
+  ) {
+    if (!index) return;
 
-      trackSearchDebounced(query, selectedProvider, results.length);
+    let filteredResults = getAllItems().filter(
+      (item) =>
+        (!provider || item.litellm_provider === provider) &&
+        (minInput === null ||
+          Boolean(item.max_input_tokens && item.max_input_tokens >= minInput)) &&
+        (minOutput === null ||
+          Boolean(item.max_output_tokens && item.max_output_tokens >= minOutput)),
+    );
+
+    if (nextQuery) {
+      filteredResults = new Fuse(filteredResults, {
+        threshold: 0.3,
+        keys: SEARCH_KEYS,
+      })
+        .search(nextQuery)
+        .map((result) => result.item);
+    }
+
+    results = filteredResults.map((item, refIndex) => ({ item, refIndex }));
+
+    if (sortColumn) {
+      applySorting();
+    }
+
+    trackSearchDebounced(nextQuery, provider, results.length);
+  }
+
+  function handleProviderImageError(event: Event) {
+    const target = event.currentTarget as HTMLImageElement | null;
+    if (!target) return;
+
+    target.style.display = "none";
+
+    const fallback = target.nextElementSibling as HTMLElement | null;
+    if (fallback) {
+      fallback.style.display = "flex";
     }
   }
 </script>
@@ -312,20 +618,28 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
 <svelte:window on:keydown={handleKeydown} />
 
 <main class="container">
-  <!-- Hero Section -->
   <div class="hero">
     <div class="hero-badge">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
       Open-source AI Gateway — 27K+ GitHub Stars
     </div>
-    <h1 class="hero-title">The Most Comprehensive<br/>AI Model Catalog</h1>
+    <h1 class="hero-title">Search, filter, and compare the AI model landscape</h1>
     <p class="hero-subtitle">
-      Compare pricing, context windows, and features for <strong>2,600+ models</strong> across <strong>140+ providers</strong>. Powered by LiteLLM's open-source model database.
+      Compare pricing, context windows, and capabilities for <strong>2,600+ models</strong> across <strong>140+ providers</strong> with a workspace built for repeat research, faster decision-making, and shareable filtered views.
     </p>
-    
+
+    <div class="hero-highlights">
+      <div class="hero-highlight">
+        <span class="status-dot"></span>
+        Live data from LiteLLM GitHub
+      </div>
+      <div class="hero-highlight">Shareable filters in the URL</div>
+      <div class="hero-highlight">{platformShortcut} to jump into search</div>
+    </div>
+
     <div class="cta-buttons">
-      <a 
-        href="https://github.com/BerriAI/litellm" 
+      <a
+        href="https://github.com/BerriAI/litellm"
         target="_blank"
         rel="noopener noreferrer"
         class="btn btn-primary"
@@ -335,8 +649,8 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
         </svg>
         View on GitHub
       </a>
-      <a 
-        href="https://docs.litellm.ai/docs/" 
+      <a
+        href="https://docs.litellm.ai/docs/"
         target="_blank"
         rel="noopener noreferrer"
         class="btn btn-secondary"
@@ -346,7 +660,6 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     </div>
   </div>
 
-  <!-- Trust Logos -->
   <div class="trust-section">
     <p class="trust-label">Trusted by leading teams</p>
     <div class="trust-logos">
@@ -376,78 +689,133 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     </div>
   </div>
 
-  <!-- Search and Filters -->
-  <div class="search-section">
-    <div class="search-bar-container">
-      <div class="search-input-wrapper">
-        <svg class="search-icon" width="18" height="18" viewBox="0 0 20 20" fill="none">
-          <circle cx="8.5" cy="8.5" r="5.75" stroke="currentColor" stroke-width="1.5"/>
-          <path d="M12.5 12.5L16.5 16.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-        <input
-          id="query"
-          bind:this={searchInput}
-          bind:value={query}
-          on:focus={() => { searchFocused = true; }}
-          on:blur={() => { searchFocused = false; }}
-          type="text"
-          autocomplete="off"
-          name="query"
-          aria-label="Search models"
-          placeholder="Search models... (e.g., gpt-4o, claude-3.5, gemini)"
-          class="search-input"
-        />
-        {#if query}
-          <button class="search-clear" on:click={() => { query = ""; }} type="button">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
-        {/if}
-        {#if !query && !searchFocused}
-          <kbd class="search-shortcut">⌘K</kbd>
-        {/if}
+  <section class="search-section" aria-labelledby="workspace-title">
+    <div class="workspace-shell">
+      <div class="search-header">
+        <div>
+          <p class="section-kicker">Workspace</p>
+          <h2 id="workspace-title">Search, filter, and compare models</h2>
+        </div>
+        <div class="search-status">
+          <span class="status-dot"></span>
+          Share this exact view with the URL
+        </div>
       </div>
-      
-      <ProviderDropdown bind:selectedProvider {providers} />
+
+      <div class="search-bar-container">
+        <div class="search-input-wrapper">
+          <svg class="search-icon" width="18" height="18" viewBox="0 0 20 20" fill="none">
+            <circle cx="8.5" cy="8.5" r="5.75" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M12.5 12.5L16.5 16.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <input
+            id="query"
+            bind:this={searchInput}
+            bind:value={query}
+            on:focus={() => {
+              searchFocused = true;
+            }}
+            on:blur={() => {
+              searchFocused = false;
+            }}
+            type="text"
+            autocomplete="off"
+            name="query"
+            aria-label="Search models"
+            placeholder="Search models, providers, and capabilities"
+            class="search-input"
+          />
+          {#if query}
+            <button class="search-clear" on:click={() => {
+              query = "";
+            }} type="button" aria-label="Clear search query">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          {/if}
+          {#if !query && !searchFocused}
+            <kbd class="search-shortcut">{platformShortcut}</kbd>
+          {/if}
+        </div>
+
+        <ProviderDropdown bind:selectedProvider {providers} />
+      </div>
+
+      <div class="filters-row">
+        <div class="filter-group">
+          <label for="maxInputTokens">Min Input Tokens</label>
+          <input
+            id="maxInputTokens"
+            bind:value={maxInputTokens}
+            type="number"
+            min="0"
+            placeholder="e.g., 100000"
+            class="filter-input"
+          />
+        </div>
+        <div class="filter-group">
+          <label for="maxOutputTokens">Min Output Tokens</label>
+          <input
+            id="maxOutputTokens"
+            bind:value={maxOutputTokens}
+            type="number"
+            min="0"
+            placeholder="e.g., 4096"
+            class="filter-input"
+          />
+        </div>
+      </div>
+
+      {#if !loading && !loadError}
+        <div class="results-meta">
+          <div class="results-copy">
+            <span class="results-count">
+              Showing {results.length.toLocaleString()} of {totalModels.toLocaleString()} models
+            </span>
+            <span class="results-helper">Live catalog powered by LiteLLM's open-source model database.</span>
+          </div>
+          {#if activeFilters.length}
+            <button class="clear-filters" on:click={clearAllFilters} type="button">
+              Clear all filters
+            </button>
+          {/if}
+        </div>
+
+        {#if activeFilters.length}
+          <div class="active-filters" aria-label="Active filters">
+            {#each activeFilters as filter}
+              <button class="filter-chip" type="button" on:click={() => clearFilter(filter.key)}>
+                <span>{filter.label}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            {/each}
+          </div>
+        {/if}
+      {/if}
     </div>
+  </section>
 
-    <div class="filters-row">
-      <div class="filter-group">
-        <label for="maxInputTokens">Min Input Tokens</label>
-        <input
-          id="maxInputTokens"
-          bind:value={maxInputTokens}
-          type="number"
-          min="0"
-          placeholder="e.g., 100000"
-          class="filter-input"
-        />
-      </div>
-      <div class="filter-group">
-        <label for="maxOutputTokens">Min Output Tokens</label>
-        <input
-          id="maxOutputTokens"
-          bind:value={maxOutputTokens}
-          type="number"
-          min="0"
-          placeholder="e.g., 4096"
-          class="filter-input"
-        />
+  {#if loadError}
+    <div class="table-container">
+      <div class="state-panel">
+        <div class="state-copy">
+          <p class="state-eyebrow">Catalog unavailable</p>
+          <h3>We couldn't load the live model catalog</h3>
+          <p>
+            The data source did not respond successfully. Retry to refresh the catalog and keep the page trustworthy.
+          </p>
+        </div>
+        <div class="state-actions">
+          <button class="btn btn-primary" type="button" on:click={loadModels}>Retry loading</button>
+          <a class="btn btn-secondary" href="https://github.com/BerriAI/litellm" target="_blank" rel="noopener noreferrer">
+            View source repository
+          </a>
+        </div>
       </div>
     </div>
-
-    {#if !loading}
-      <div class="results-meta">
-        <span class="results-count">{results.length.toLocaleString()} models</span>
-        {#if query || selectedProvider || maxInputTokens || maxOutputTokens}
-          <button class="clear-filters" on:click={() => { query = ""; selectedProvider = ""; maxInputTokens = null; maxOutputTokens = null; }}>
-            Clear all filters
-          </button>
-        {/if}
-      </div>
-    {/if}
-  </div>
-
-  {#if loading}
+  {:else if loading}
     <div class="table-container">
       <div class="skeleton-table">
         {#each [1,2,3,4,5,6,7,8] as _}
@@ -460,78 +828,331 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
         {/each}
       </div>
     </div>
+  {:else if results.length === 0}
+    <div class="table-container">
+      <div class="state-panel empty-state">
+        <div class="state-copy">
+          <p class="state-eyebrow">No matches</p>
+          <h3>No models match this view</h3>
+          <p>
+            Try loosening one or more filters, or start from a nearby match below and refine from there.
+          </p>
+        </div>
+
+        <div class="state-actions">
+          {#if selectedProvider}
+            <button class="btn btn-secondary" type="button" on:click={() => clearFilter("provider")}>
+              Clear provider
+            </button>
+          {/if}
+          {#if maxInputTokens !== null || maxOutputTokens !== null}
+            <button class="btn btn-secondary" type="button" on:click={() => {
+              maxInputTokens = null;
+              maxOutputTokens = null;
+            }}>
+              Clear token filters
+            </button>
+          {/if}
+          {#if activeFilters.length}
+            <button class="btn btn-primary" type="button" on:click={clearAllFilters}>
+              Reset this workspace
+            </button>
+          {/if}
+          {#if query}
+            <a class="btn btn-secondary" href={getIssueUrlForAdd(query)} target="_blank" rel="noopener noreferrer">
+              Request this model on GitHub
+            </a>
+          {/if}
+        </div>
+
+        {#if nearbyMatches.length}
+          <div class="suggested-models">
+            <p class="suggested-title">Nearby matches</p>
+            <div class="suggested-grid">
+              {#each nearbyMatches as model}
+                <button class="suggestion-card" type="button" on:click={() => applySuggestedModel(model)}>
+                  <span class="suggestion-name">{getDisplayModelName(model.name, model.litellm_provider || "")}</span>
+                  <span class="suggestion-provider">{model.litellm_provider || "Unknown provider"}</span>
+                  <span class="suggestion-context">{formatContext(model.max_input_tokens)} context</span>
+                </button>
+              {/each}
+            </div>
+          </div>
+        {/if}
+      </div>
+    </div>
   {:else}
-    {#if query != "" && results.length < 12}
+    {#if query !== "" && results.length < 12}
       <div class="add-model-section">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
-        <a href={getIssueUrlForAdd(query)}>Can't find your model? Request it on GitHub</a>
+        <a href={getIssueUrlForAdd(query)} target="_blank" rel="noopener noreferrer">Can't find your model? Request it on GitHub</a>
       </div>
     {/if}
 
-    <div class="table-container">
+    <div class="mobile-results">
+      <div class="mobile-card-list">
+        {#each results as result (result.item.name)}
+          <article class="model-card">
+            <div class="model-card-top">
+              <div class="model-card-title">
+                <div class="provider-avatar">
+                  {#if getProviderLogo(result.item.litellm_provider || "")}
+                    <img
+                      src={getProviderLogo(result.item.litellm_provider || "")}
+                      alt={result.item.litellm_provider}
+                      class="provider-logo-img"
+                      on:error={handleProviderImageError}
+                    />
+                    <div class="provider-initial" style="display: none;">
+                      {getProviderInitial(result.item.litellm_provider || "")}
+                    </div>
+                  {:else}
+                    <div class="provider-initial">
+                      {getProviderInitial(result.item.litellm_provider || "")}
+                    </div>
+                  {/if}
+                </div>
+                <div>
+                  <div class="model-card-name">{getDisplayModelName(result.item.name, result.item.litellm_provider || "")}</div>
+                  <div class="model-card-provider">
+                    {result.item.litellm_provider || "Unknown provider"}
+                    {#if result.item.mode}
+                      <span class="mode-badge">{getModeLabel(result.item.mode)}</span>
+                    {/if}
+                  </div>
+                </div>
+              </div>
+              <div class="model-card-actions">
+                <button
+                  class="copy-button always-visible"
+                  type="button"
+                  title="Copy model name"
+                  on:click={() => copyToClipboard(getDisplayModelName(result.item.name, result.item.litellm_provider || ""))}
+                >
+                  {#if copiedModel === getDisplayModelName(result.item.name, result.item.litellm_provider || "")}
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success-color)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  {:else}
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <rect x="4" y="4" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
+                      <path d="M2 6V2.5C2 1.67157 2.67157 1 3.5 1H7" stroke="currentColor" stroke-width="1.2"/>
+                    </svg>
+                  {/if}
+                </button>
+                <button
+                  class="card-expand-btn"
+                  type="button"
+                  aria-expanded={expandedRows.has(result.item.name)}
+                  aria-controls={getDetailId(result.item.name)}
+                  on:click={() => toggleRow(result.item.name)}
+                >
+                  {expandedRows.has(result.item.name) ? "Hide details" : "View details"}
+                </button>
+              </div>
+            </div>
+
+            <div class="model-card-metrics">
+              <div class="metric-card">
+                <span>Context</span>
+                <strong>{formatContext(result.item.max_input_tokens)}</strong>
+              </div>
+              <div class="metric-card">
+                <span>Input</span>
+                <strong>{formatCost(result.item.input_cost_per_token)}</strong>
+              </div>
+              <div class="metric-card">
+                <span>Output</span>
+                <strong>{formatCost(result.item.output_cost_per_token)}</strong>
+              </div>
+            </div>
+
+            {#if getFeatureBadges(result.item).length}
+              <div class="feature-chip-list">
+                {#each getFeatureBadges(result.item) as badge}
+                  <span class="feature-chip">{badge}</span>
+                {/each}
+              </div>
+            {/if}
+
+            {#if expandedRows.has(result.item.name)}
+              <div class="model-card-detail" id={getDetailId(result.item.name)} transition:fly={{ y: -10, duration: 200 }}>
+                <div class="detail-toolbar">
+                  <div>
+                    <p class="detail-heading">{getCodeSamples(result.item.name, result.item.litellm_provider || "", result.item.mode).summary}</p>
+                    <p class="detail-section-subtle">Mode-specific quickstarts and source-of-truth metadata for this model.</p>
+                  </div>
+                  <div class="detail-toolbar-actions">
+                    <button class="detail-inline-action" type="button" on:click={() => copyToClipboard(getDisplayModelName(result.item.name, result.item.litellm_provider || ""))}>
+                      Copy model ID
+                    </button>
+                    <a href={getIssueUrlForFix(result.item.name)} target="_blank" rel="noopener noreferrer" class="detail-action-link">
+                      Report incorrect data
+                    </a>
+                  </div>
+                </div>
+
+                <div class="pricing-cards">
+                  <div class="pricing-card">
+                    <span class="pricing-label">Input</span>
+                    <span class="pricing-value">{formatCost(result.item.input_cost_per_token)}</span>
+                  </div>
+                  <div class="pricing-card">
+                    <span class="pricing-label">Output</span>
+                    <span class="pricing-value">{formatCost(result.item.output_cost_per_token)}</span>
+                  </div>
+                  <div class="pricing-card">
+                    <span class="pricing-label">Cache Read</span>
+                    <span class="pricing-value">{formatCost(result.item.cache_read_input_token_cost)}</span>
+                  </div>
+                  <div class="pricing-card">
+                    <span class="pricing-label">Cache Write</span>
+                    <span class="pricing-value">{formatCost(result.item.cache_creation_input_token_cost)}</span>
+                  </div>
+                </div>
+
+                <div class="info-rows">
+                  <div class="info-row">
+                    <span class="info-label">Provider</span>
+                    <span class="info-value">{result.item.litellm_provider || "—"}</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-label">Mode</span>
+                    <span class="info-value">{result.item.mode ? getModeLabel(result.item.mode) : "—"}</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-label">Max Input</span>
+                    <span class="info-value">{result.item.max_input_tokens ? `${result.item.max_input_tokens.toLocaleString()} tokens` : "—"}</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-label">Max Output</span>
+                    <span class="info-value">{result.item.max_output_tokens ? `${result.item.max_output_tokens.toLocaleString()} tokens` : "—"}</span>
+                  </div>
+                </div>
+
+                <div class="detail-code-section">
+                  <div class="code-header-row">
+                    <div>
+                      <p class="detail-heading">{getCodeSamples(result.item.name, result.item.litellm_provider || "", result.item.mode).summary}</p>
+                    </div>
+                    <div class="code-tabs">
+                      <button
+                        class="code-tab"
+                        class:active={!codeTabStates[result.item.name] || codeTabStates[result.item.name] === "sdk"}
+                        on:click={() => setCodeTab(result.item.name, "sdk")}
+                        type="button"
+                      >Python SDK</button>
+                      <button
+                        class="code-tab"
+                        class:active={codeTabStates[result.item.name] === "proxy"}
+                        on:click={() => setCodeTab(result.item.name, "proxy")}
+                        type="button"
+                      >AI Gateway</button>
+                    </div>
+                  </div>
+                  <pre class="code-snippet"><code>{!codeTabStates[result.item.name] || codeTabStates[result.item.name] === "sdk"
+                    ? getCodeSamples(result.item.name, result.item.litellm_provider || "", result.item.mode).sdk
+                    : getCodeSamples(result.item.name, result.item.litellm_provider || "", result.item.mode).proxy}</code></pre>
+                  <div class="detail-actions">
+                    <button
+                      class="copy-code-btn"
+                      type="button"
+                      on:click={() => copyCode(
+                        !codeTabStates[result.item.name] || codeTabStates[result.item.name] === "sdk"
+                          ? getCodeSamples(result.item.name, result.item.litellm_provider || "", result.item.mode).sdk
+                          : getCodeSamples(result.item.name, result.item.litellm_provider || "", result.item.mode).proxy,
+                        `${result.item.name}-${codeTabStates[result.item.name] || "sdk"}`,
+                      )}
+                    >
+                      {copiedCodeKey === `${result.item.name}-${codeTabStates[result.item.name] || "sdk"}` ? "Copied!" : "Copy snippet"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            {/if}
+          </article>
+        {/each}
+      </div>
+    </div>
+
+    <div class="desktop-results table-container">
       <table>
         <thead>
           <tr>
             <th class="th-model">Model</th>
-            <th class="th-sortable" on:click={() => handleSort("context")}>
-              Context
-              <span class="sort-icon" class:active={sortColumn === "context"} class:desc={sortColumn === "context" && sortDirection === "desc"}>↑</span>
+            <th aria-sort={getAriaSort("context")}>
+              <button class="sort-button" type="button" on:click={() => handleSort("context")}>
+                Context
+                <span class="sort-icon" class:active={sortColumn === "context"} class:desc={sortColumn === "context" && sortDirection === "desc"}>↑</span>
+              </button>
             </th>
-            <th class="th-sortable" on:click={() => handleSort("input")}>
-              Input $/M
-              <span class="sort-icon" class:active={sortColumn === "input"} class:desc={sortColumn === "input" && sortDirection === "desc"}>↑</span>
+            <th aria-sort={getAriaSort("input")}>
+              <button class="sort-button" type="button" on:click={() => handleSort("input")}>
+                Input $/M
+                <span class="sort-icon" class:active={sortColumn === "input"} class:desc={sortColumn === "input" && sortDirection === "desc"}>↑</span>
+              </button>
             </th>
-            <th class="th-sortable" on:click={() => handleSort("output")}>
-              Output $/M
-              <span class="sort-icon" class:active={sortColumn === "output"} class:desc={sortColumn === "output" && sortDirection === "desc"}>↑</span>
+            <th aria-sort={getAriaSort("output")}>
+              <button class="sort-button" type="button" on:click={() => handleSort("output")}>
+                Output $/M
+                <span class="sort-icon" class:active={sortColumn === "output"} class:desc={sortColumn === "output" && sortDirection === "desc"}>↑</span>
+              </button>
             </th>
-            <th class="th-sortable th-hide-mobile" on:click={() => handleSort("cache_read")}>
-              Cache Read
-              <span class="sort-icon" class:active={sortColumn === "cache_read"} class:desc={sortColumn === "cache_read" && sortDirection === "desc"}>↑</span>
+            <th class="th-hide-mobile" aria-sort={getAriaSort("cache_read")}>
+              <button class="sort-button" type="button" on:click={() => handleSort("cache_read")}>
+                Cache Read
+                <span class="sort-icon" class:active={sortColumn === "cache_read"} class:desc={sortColumn === "cache_read" && sortDirection === "desc"}>↑</span>
+              </button>
             </th>
-            <th class="th-sortable th-hide-mobile" on:click={() => handleSort("cache_write")}>
-              Cache Write
-              <span class="sort-icon" class:active={sortColumn === "cache_write"} class:desc={sortColumn === "cache_write" && sortDirection === "desc"}>↑</span>
+            <th class="th-hide-mobile" aria-sort={getAriaSort("cache_write")}>
+              <button class="sort-button" type="button" on:click={() => handleSort("cache_write")}>
+                Cache Write
+                <span class="sort-icon" class:active={sortColumn === "cache_write"} class:desc={sortColumn === "cache_write" && sortDirection === "desc"}>↑</span>
+              </button>
             </th>
           </tr>
         </thead>
         <tbody>
-          {#each results as { item: { name, mode, litellm_provider, max_input_tokens, max_output_tokens, input_cost_per_token, output_cost_per_token, cache_creation_input_token_cost, cache_read_input_token_cost, supports_function_calling, supports_vision, supports_response_schema, supports_tool_choice, supports_parallel_function_calling, supports_audio_input, supports_prompt_caching, ...data } } (name)}
-            <tr class="model-row" class:expanded={expandedRows.has(name)} on:click={() => toggleRow(name)}>
+          {#each results as { item: { name, mode, litellm_provider, max_input_tokens, max_output_tokens, input_cost_per_token, output_cost_per_token, cache_creation_input_token_cost, cache_read_input_token_cost, supports_function_calling, supports_vision, supports_response_schema, supports_tool_choice, supports_parallel_function_calling, supports_audio_input, supports_prompt_caching } } (name)}
+            <tr class="model-row" class:expanded={expandedRows.has(name)}>
               <td class="model-name">
                 <div class="model-info">
-                  <svg class="expand-icon" class:expanded={expandedRows.has(name)} width="14" height="14" viewBox="0 0 16 16" fill="none">
-                    <path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                  <div class="provider-avatar">
-                    {#if getProviderLogo(litellm_provider)}
-                      <img 
-                        src={getProviderLogo(litellm_provider)} 
-                        alt={litellm_provider}
-                        class="provider-logo-img"
-                        on:error={(e) => {
-                          e.currentTarget.style.display = 'none';
-                          e.currentTarget.nextElementSibling.style.display = 'flex';
-                        }}
-                      />
-                      <div class="provider-initial" style="display: none;">
-                        {getProviderInitial(litellm_provider)}
-                      </div>
-                    {:else}
-                      <div class="provider-initial">
-                        {getProviderInitial(litellm_provider)}
-                      </div>
-                    {/if}
-                  </div>
-                  <div class="model-name-group">
-                    <span class="model-title" title={getDisplayModelName(name, litellm_provider)}>{getDisplayModelName(name, litellm_provider)}</span>
-                    {#if mode}
-                      <span class="mode-badge">{getModeLabel(mode)}</span>
-                    {/if}
-                  </div>
+                  <button
+                    class="row-toggle"
+                    type="button"
+                    aria-expanded={expandedRows.has(name)}
+                    aria-controls={getDetailId(name)}
+                    on:click={() => toggleRow(name)}
+                  >
+                    <svg class="expand-icon" class:expanded={expandedRows.has(name)} width="14" height="14" viewBox="0 0 16 16" fill="none">
+                      <path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <div class="provider-avatar">
+                      {#if getProviderLogo(litellm_provider || "")}
+                        <img
+                          src={getProviderLogo(litellm_provider || "")}
+                          alt={litellm_provider}
+                          class="provider-logo-img"
+                          on:error={handleProviderImageError}
+                        />
+                        <div class="provider-initial" style="display: none;">
+                          {getProviderInitial(litellm_provider || "")}
+                        </div>
+                      {:else}
+                        <div class="provider-initial">
+                          {getProviderInitial(litellm_provider || "")}
+                        </div>
+                      {/if}
+                    </div>
+                    <div class="model-name-group">
+                      <span class="model-title" title={getDisplayModelName(name, litellm_provider)}>{getDisplayModelName(name, litellm_provider)}</span>
+                      {#if mode}
+                        <span class="mode-badge">{getModeLabel(mode)}</span>
+                      {/if}
+                    </div>
+                  </button>
+
                   <button
                     class="copy-button"
-                    on:click|stopPropagation={() => copyToClipboard(getDisplayModelName(name, litellm_provider))}
+                    on:click={() => copyToClipboard(getDisplayModelName(name, litellm_provider))}
                     title="Copy model name"
                     type="button"
                   >
@@ -552,12 +1173,28 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
               <td class="cost-cell td-hide-mobile">{formatCost(cache_read_input_token_cost)}</td>
               <td class="cost-cell td-hide-mobile">{formatCost(cache_creation_input_token_cost)}</td>
             </tr>
+
             {#if expandedRows.has(name)}
-              <tr class="expanded-content" transition:fly={{ y: -10, duration: 200 }}>
+              <tr class="expanded-content" id={getDetailId(name)} transition:fly={{ y: -10, duration: 200 }}>
                 <td colspan="6">
                   <div class="detail-panel">
+                    <div class="detail-toolbar">
+                      <div>
+                        <p class="detail-heading">{getCodeSamples(name, litellm_provider, mode).summary}</p>
+                        <p class="detail-section-subtle">Mode-aware quickstarts, pricing, and support signals for evaluation and rollout planning.</p>
+                      </div>
+                      <div class="detail-toolbar-actions">
+                        <button class="detail-inline-action" type="button" on:click={() => copyToClipboard(getDisplayModelName(name, litellm_provider))}>
+                          Copy model ID
+                        </button>
+                        <a href={getIssueUrlForFix(name)} target="_blank" rel="noopener noreferrer" class="detail-action-link">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                          Report incorrect data
+                        </a>
+                      </div>
+                    </div>
+
                     <div class="detail-grid">
-                      <!-- Pricing Cards -->
                       <div class="detail-section">
                         <h4 class="detail-heading">Pricing <span class="detail-unit">per 1M tokens</span></h4>
                         <div class="pricing-cards">
@@ -580,7 +1217,6 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
                         </div>
                       </div>
 
-                      <!-- Model Info -->
                       <div class="detail-section">
                         <h4 class="detail-heading">Model Info</h4>
                         <div class="info-rows">
@@ -594,16 +1230,15 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
                           </div>
                           <div class="info-row">
                             <span class="info-label">Max Input</span>
-                            <span class="info-value">{max_input_tokens ? max_input_tokens.toLocaleString() + " tokens" : "—"}</span>
+                            <span class="info-value">{max_input_tokens ? `${max_input_tokens.toLocaleString()} tokens` : "—"}</span>
                           </div>
                           <div class="info-row">
                             <span class="info-label">Max Output</span>
-                            <span class="info-value">{max_output_tokens ? max_output_tokens.toLocaleString() + " tokens" : "—"}</span>
+                            <span class="info-value">{max_output_tokens ? `${max_output_tokens.toLocaleString()} tokens` : "—"}</span>
                           </div>
                         </div>
                       </div>
 
-                      <!-- Features -->
                       <div class="detail-section">
                         <h4 class="detail-heading">Features</h4>
                         <div class="feature-list">
@@ -629,57 +1264,43 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
                       </div>
                     </div>
 
-                    <!-- Code snippet with tabs -->
                     <div class="detail-code-section">
                       <div class="code-header-row">
+                        <div>
+                          <p class="detail-heading">{getCodeSamples(name, litellm_provider, mode).summary}</p>
+                        </div>
                         <div class="code-tabs">
                           <button
                             class="code-tab"
                             class:active={!codeTabStates[name] || codeTabStates[name] === "sdk"}
-                            on:click|stopPropagation={() => { codeTabStates[name] = "sdk"; codeTabStates = codeTabStates; }}
+                            on:click={() => setCodeTab(name, "sdk")}
+                            type="button"
                           >Python SDK</button>
                           <button
                             class="code-tab"
                             class:active={codeTabStates[name] === "proxy"}
-                            on:click|stopPropagation={() => { codeTabStates[name] = "proxy"; codeTabStates = codeTabStates; }}
-                          >AI Gateway (Proxy)</button>
+                            on:click={() => setCodeTab(name, "proxy")}
+                            type="button"
+                          >AI Gateway</button>
                         </div>
-                        {#if !codeTabStates[name] || codeTabStates[name] === "sdk"}
-                          <button class="copy-code-btn" on:click|stopPropagation={() => copyToClipboard(`from litellm import completion\n\nresponse = completion(\n    model="${getDisplayModelName(name, litellm_provider)}",\n    messages=[{"role": "user", "content": "Hello!"}]\n)`)}>
-                            {copiedModel.includes("from litellm") ? "Copied!" : "Copy"}
-                          </button>
-                        {:else}
-                          <button class="copy-code-btn" on:click|stopPropagation={() => copyToClipboard(`curl http://0.0.0.0:4000/v1/chat/completions \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer sk-1234" \\\n  -d '{\n    "model": "${getDisplayModelName(name, litellm_provider)}",\n    "messages": [{"role": "user", "content": "Hello!"}]\n  }'`)}>
-                            {copiedModel.includes("curl") ? "Copied!" : "Copy"}
-                          </button>
-                        {/if}
                       </div>
-                      {#if !codeTabStates[name] || codeTabStates[name] === "sdk"}
-                        <pre class="code-snippet"><code><span class="code-kw">from</span> litellm <span class="code-kw">import</span> completion
-
-response = completion(
-    model=<span class="code-str">"{getDisplayModelName(name, litellm_provider)}"</span>,
-    messages=[{`{`}<span class="code-str">"role"</span>: <span class="code-str">"user"</span>, <span class="code-str">"content"</span>: <span class="code-str">"Hello!"</span>{`}`}]
-)</code></pre>
-                      {:else}
-                        <pre class="code-snippet"><code><span class="code-comment"># Start proxy: litellm --model {getDisplayModelName(name, litellm_provider)}</span>
-
-curl http://0.0.0.0:4000/v1/chat/completions \
-  -H <span class="code-str">"Content-Type: application/json"</span> \
-  -H <span class="code-str">"Authorization: Bearer sk-1234"</span> \
-  -d <span class="code-str">'{`{`}
-    "model": "{getDisplayModelName(name, litellm_provider)}",
-    "messages": [{`{`}"role": "user", "content": "Hello!"{`}`}]
-  {`}`}'</span></code></pre>
-                      {/if}
-                    </div>
-
-                    <!-- Actions -->
-                    <div class="detail-actions">
-                      <a href={getIssueUrlForFix(name)} target="_blank" rel="noopener noreferrer" class="detail-action-link" on:click|stopPropagation>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                        Report incorrect data
-                      </a>
+                      <pre class="code-snippet"><code>{!codeTabStates[name] || codeTabStates[name] === "sdk"
+                        ? getCodeSamples(name, litellm_provider, mode).sdk
+                        : getCodeSamples(name, litellm_provider, mode).proxy}</code></pre>
+                      <div class="detail-actions">
+                        <button
+                          class="copy-code-btn"
+                          type="button"
+                          on:click={() => copyCode(
+                            !codeTabStates[name] || codeTabStates[name] === "sdk"
+                              ? getCodeSamples(name, litellm_provider, mode).sdk
+                              : getCodeSamples(name, litellm_provider, mode).proxy,
+                            `${name}-${codeTabStates[name] || "sdk"}`,
+                          )}
+                        >
+                          {copiedCodeKey === `${name}-${codeTabStates[name] || "sdk"}` ? "Copied!" : "Copy snippet"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </td>
@@ -701,8 +1322,8 @@ curl http://0.0.0.0:4000/v1/chat/completions \
   /* Hero Section */
   .hero {
     text-align: center;
-    padding: 4rem 2rem 2.5rem;
-    max-width: 800px;
+    padding: 3.5rem 2rem 2rem;
+    max-width: 920px;
     margin: 0 auto;
   }
 
@@ -726,7 +1347,7 @@ curl http://0.0.0.0:4000/v1/chat/completions \
   }
 
   .hero-title {
-    font-size: 3.25rem;
+    font-size: 3rem;
     font-weight: 800;
     line-height: 1.1;
     margin: 0 0 1.25rem 0;
@@ -747,6 +1368,36 @@ curl http://0.0.0.0:4000/v1/chat/completions \
   .hero-subtitle strong {
     color: var(--text-color);
     font-weight: 600;
+  }
+
+  .hero-highlights {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: center;
+    margin: 0 0 2rem 0;
+  }
+
+  .hero-highlight {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.875rem;
+    border-radius: 999px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 500;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #10b981;
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.12);
+    flex-shrink: 0;
   }
 
   .cta-buttons {
@@ -795,8 +1446,8 @@ curl http://0.0.0.0:4000/v1/chat/completions \
   /* Trust Section */
   .trust-section {
     text-align: center;
-    padding: 1.5rem 2rem 2.5rem;
-    max-width: 800px;
+    padding: 1rem 2rem 2rem;
+    max-width: 1080px;
     margin: 0 auto;
   }
 
@@ -884,6 +1535,50 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     max-width: 1400px;
     margin: 0 auto;
     padding: 0 2rem;
+  }
+
+  .workspace-shell {
+    background: linear-gradient(180deg, var(--card-bg) 0%, var(--bg-color) 100%);
+    border: 1px solid var(--border-color);
+    border-radius: 18px;
+    padding: 1.25rem;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .search-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .section-kicker {
+    margin: 0 0 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--litellm-primary);
+  }
+
+  .search-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    letter-spacing: -0.02em;
+  }
+
+  .search-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 0.875rem;
+    border-radius: 999px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    white-space: nowrap;
   }
 
   .search-bar-container {
@@ -1017,11 +1712,24 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     justify-content: space-between;
     margin-top: 1rem;
     padding-bottom: 0.5rem;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .results-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
   }
 
   .results-count {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-color);
+  }
+
+  .results-helper {
     font-size: 0.8125rem;
-    font-weight: 500;
     color: var(--muted-color);
   }
 
@@ -1035,6 +1743,32 @@ curl http://0.0.0.0:4000/v1/chat/completions \
   }
 
   .clear-filters:hover { text-decoration: underline; }
+
+  .active-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.75rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .filter-chip:hover {
+    border-color: var(--litellm-primary);
+    color: var(--litellm-primary);
+  }
 
   /* Add Model Section */
   .add-model-section {
@@ -1061,6 +1795,93 @@ curl http://0.0.0.0:4000/v1/chat/completions \
   }
 
   .add-model-section a:hover { text-decoration: underline; }
+
+  .state-panel {
+    background: linear-gradient(180deg, var(--card-bg) 0%, var(--bg-color) 100%);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .state-copy h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1.35rem;
+    letter-spacing: -0.02em;
+  }
+
+  .state-copy p {
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  .state-eyebrow {
+    margin-bottom: 0.6rem !important;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--litellm-primary);
+    font-weight: 700;
+  }
+
+  .state-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .suggested-models {
+    border-top: 1px solid var(--border-color);
+    padding-top: 1rem;
+  }
+
+  .suggested-title {
+    margin: 0 0 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-color);
+  }
+
+  .suggested-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .suggestion-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    padding: 0.875rem 1rem;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-color);
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s ease;
+  }
+
+  .suggestion-card:hover {
+    border-color: var(--litellm-primary);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .suggestion-name {
+    font-weight: 600;
+    font-size: 0.875rem;
+  }
+
+  .suggestion-provider,
+  .suggestion-context {
+    font-size: 0.8125rem;
+    color: var(--muted-color);
+  }
 
   /* Table */
   .table-container {
@@ -1102,12 +1923,21 @@ curl http://0.0.0.0:4000/v1/chat/completions \
 
   .th-model { padding-left: 1rem; }
 
-  .th-sortable {
+  .sort-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
     cursor: pointer;
-    transition: color 0.15s;
   }
 
-  .th-sortable:hover { color: var(--text-color); }
+  .sort-button:hover { color: var(--text-color); }
 
   .sort-icon {
     display: inline-block;
@@ -1117,14 +1947,12 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     font-size: 0.625rem;
   }
 
-  .th-sortable:hover .sort-icon { opacity: 0.3; }
   .sort-icon.active { opacity: 1; color: var(--litellm-primary); }
   .sort-icon.desc { transform: rotate(180deg); }
 
   tbody tr.model-row {
     border-bottom: 1px solid var(--border-color);
     transition: background-color 0.1s ease;
-    cursor: pointer;
   }
 
   tbody tr.model-row:hover {
@@ -1155,6 +1983,19 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     gap: 0.625rem;
   }
 
+  .row-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    flex: 1;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
   .expand-icon {
     color: var(--muted-color);
     transition: transform 0.2s ease;
@@ -1174,12 +2015,14 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     cursor: pointer;
     color: var(--muted-color);
     transition: all 0.1s ease;
-    opacity: 0;
+    opacity: 0.65;
     margin-left: 0.25rem;
     flex-shrink: 0;
   }
 
-  .model-row:hover .copy-button { opacity: 1; }
+  .model-row:hover .copy-button,
+  .copy-button:focus-visible,
+  .copy-button.always-visible { opacity: 1; }
   .copy-button:hover { background-color: var(--bg-tertiary); color: var(--text-secondary); }
 
   .provider-avatar {
@@ -1267,14 +2110,43 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     border-top: 1px solid var(--border-color);
   }
 
+  .detail-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .detail-toolbar-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .detail-inline-action {
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    color: var(--text-color);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .detail-inline-action:hover {
+    border-color: var(--litellm-primary);
+    color: var(--litellm-primary);
+  }
+
   .detail-grid {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     gap: 1.5rem;
     margin-bottom: 1.5rem;
   }
-
-  .detail-section { }
 
   .detail-heading {
     font-size: 0.6875rem;
@@ -1283,6 +2155,13 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     letter-spacing: 0.08em;
     color: var(--muted-color);
     margin: 0 0 0.75rem 0;
+  }
+
+  .detail-section-subtle {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
   }
 
   .detail-unit {
@@ -1382,6 +2261,7 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     padding: 0.625rem 1rem;
     border-bottom: 1px solid var(--border-color);
     background: var(--bg-secondary);
+    gap: 1rem;
   }
 
   .code-header-row .detail-heading { margin: 0; }
@@ -1422,11 +2302,6 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     color: var(--text-color);
   }
 
-  .code-comment {
-    color: var(--muted-color);
-    font-style: italic;
-  }
-
   .copy-code-btn {
     font-size: 0.75rem;
     font-weight: 600;
@@ -1452,17 +2327,11 @@ curl http://0.0.0.0:4000/v1/chat/completions \
   }
 
   .code-snippet code { display: block; }
-  .code-kw { color: #8b5cf6; }
-  .code-str { color: #10b981; }
-
-  @media (prefers-color-scheme: dark) {
-    .code-kw { color: #a78bfa; }
-    .code-str { color: #34d399; }
-  }
 
   .detail-actions {
     display: flex;
     gap: 1rem;
+    margin-top: 0.875rem;
   }
 
   .detail-action-link {
@@ -1477,6 +2346,137 @@ curl http://0.0.0.0:4000/v1/chat/completions \
   }
 
   .detail-action-link:hover { color: var(--litellm-primary); }
+
+  .desktop-results {
+    display: block;
+  }
+
+  .mobile-results {
+    display: none;
+    max-width: 1400px;
+    margin: 1rem auto 0;
+    padding: 0 1rem;
+  }
+
+  .mobile-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+  }
+
+  .model-card {
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    border-radius: 16px;
+    padding: 1rem;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .model-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .model-card-title {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+  }
+
+  .model-card-name {
+    font-family: 'JetBrains Mono', 'Menlo', monospace;
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+    word-break: break-word;
+  }
+
+  .model-card-provider {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    font-size: 0.8125rem;
+    color: var(--muted-color);
+  }
+
+  .model-card-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-end;
+  }
+
+  .card-expand-btn {
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-color);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.45rem 0.7rem;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+
+  .card-expand-btn:hover {
+    border-color: var(--litellm-primary);
+    color: var(--litellm-primary);
+  }
+
+  .model-card-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.625rem;
+    margin-top: 1rem;
+  }
+
+  .metric-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .metric-card span {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted-color);
+    font-weight: 700;
+  }
+
+  .metric-card strong {
+    font-size: 0.9rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .feature-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.875rem;
+  }
+
+  .feature-chip {
+    padding: 0.35rem 0.55rem;
+    border-radius: 999px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .model-card-detail {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+  }
 
   /* Skeleton */
   .skeleton-table {
@@ -1512,26 +2512,41 @@ curl http://0.0.0.0:4000/v1/chat/completions \
   }
 
   /* Responsive */
-  .th-hide-mobile, .td-hide-mobile { }
-
   @media (max-width: 900px) {
     .th-hide-mobile, .td-hide-mobile { display: none; }
   }
 
   @media (max-width: 768px) {
-    .hero { padding: 2.5rem 1rem 1.5rem; }
+    .hero { padding: 2.5rem 1rem 1.25rem; }
     .hero-title { font-size: 2rem; }
     .hero-subtitle { font-size: 1rem; }
+    .hero-highlights { justify-content: flex-start; }
     .cta-buttons { flex-direction: column; width: 100%; max-width: 320px; margin: 0 auto; }
     .btn { width: 100%; }
     .search-section { padding: 0 1rem; }
+    .workspace-shell { padding: 1rem; border-radius: 16px; }
+    .search-header { flex-direction: column; }
+    .search-status { white-space: normal; }
     .search-bar-container { flex-direction: column; }
     .filters-row { grid-template-columns: 1fr; }
     .table-container { padding: 0 1rem; }
+    .suggested-grid { grid-template-columns: 1fr; }
     th, td { padding: 0.5rem 0.625rem; font-size: 0.8125rem; }
     .model-name { min-width: 180px; }
     .trust-logos { gap: 1.25rem; }
     .trust-logo-img { height: 22px; }
     .detail-grid { grid-template-columns: 1fr; }
+    .detail-toolbar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .detail-toolbar-actions { justify-content: flex-start; }
+    .code-header-row {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .desktop-results { display: none; }
+    .mobile-results { display: block; }
+    .model-card-metrics { grid-template-columns: 1fr; }
   }
 </style>

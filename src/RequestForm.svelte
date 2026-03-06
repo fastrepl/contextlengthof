@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy, tick } from "svelte";
   import { trackRequest, trackRequestFormOpened } from "./analytics";
 
   let showModal = false;
@@ -11,11 +12,18 @@
   let isSubmitting = false;
   let submitSuccess = false;
   let submitError = "";
+  let modalContent: HTMLDivElement;
+  let closeButton: HTMLButtonElement;
+  let restoreFocusTarget: HTMLElement | null = null;
 
   // Zapier webhook URL
   const ZAPIER_WEBHOOK_URL = "https://hooks.zapier.com/hooks/catch/16331268/uwas519/";
 
-  export function openModal() {
+  export async function openModal() {
+    restoreFocusTarget =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     showModal = true;
     submitSuccess = false;
     submitError = "";
@@ -25,6 +33,9 @@
     window.history.pushState({}, '', url);
     // Track form opened
     trackRequestFormOpened();
+    document.body.style.overflow = "hidden";
+    await tick();
+    closeButton?.focus();
   }
 
   function closeModal() {
@@ -41,6 +52,8 @@
     const url = new URL(window.location.href);
     url.searchParams.delete('request');
     window.history.pushState({}, '', url);
+    document.body.style.overflow = "";
+    restoreFocusTarget?.focus();
   }
 
   async function handleSubmit(e: Event) {
@@ -107,6 +120,42 @@
     }
   }
 
+  function trapFocus(event: KeyboardEvent) {
+    if (!modalContent) return;
+
+    const focusable = Array.from(
+      modalContent.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    );
+
+    if (!focusable.length) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  function handleWindowKeydown(event: KeyboardEvent) {
+    if (!showModal) return;
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeModal();
+    }
+
+    if (event.key === "Tab") {
+      trapFocus(event);
+    }
+  }
+
   function getPlaceholder() {
     if (requestType === "provider") {
       return "Describe the provider and endpoint you need...";
@@ -128,19 +177,36 @@
     }
     return "https://...";
   }
+
+  onDestroy(() => {
+    document.body.style.overflow = "";
+  });
 </script>
+
+<svelte:window on:keydown={handleWindowKeydown} />
 
 {#if showModal}
   <!-- svelte-ignore a11y-click-events-have-key-events -->
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div class="modal-backdrop" on:click={handleBackdropClick}>
-    <div class="modal-content">
+    <div
+      bind:this={modalContent}
+      class="modal-content"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="request-modal-title"
+      aria-describedby="request-modal-description"
+    >
       <div class="modal-header">
         <div>
-          <h2>Request Support</h2>
-          <p class="subtitle">Help us prioritize what to add next. We'll notify you when it's live!</p>
+          <h2 id="request-modal-title">Request Support</h2>
+          <p id="request-modal-description" class="subtitle">Help us prioritize what to add next. We'll notify you when it's live.</p>
+          <div class="modal-badges">
+            <span class="modal-badge">Shareable request link</span>
+            <span class="modal-badge">Enterprise prioritization signal</span>
+          </div>
         </div>
-        <button class="close-button" on:click={closeModal} type="button">
+        <button bind:this={closeButton} class="close-button" on:click={closeModal} type="button" aria-label="Close request form">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -159,7 +225,7 @@
       {:else}
         <form on:submit={handleSubmit}>
           <div class="form-group">
-            <label>What are you requesting? <span class="required">*</span></label>
+            <p class="field-label">What are you requesting? <span class="required">*</span></p>
             <div class="type-selector">
               <button
                 type="button"
@@ -167,6 +233,7 @@
                 class:selected={requestType === "provider"}
                 on:click={() => requestType = "provider"}
                 disabled={isSubmitting}
+                aria-pressed={requestType === "provider"}
               >
                 <div class="type-label">Provider</div>
                 <div class="type-example">e.g., AWS Polly, Azure OpenAI</div>
@@ -177,6 +244,7 @@
                 class:selected={requestType === "endpoint"}
                 on:click={() => requestType = "endpoint"}
                 disabled={isSubmitting}
+                aria-pressed={requestType === "endpoint"}
               >
                 <div class="type-label">Endpoint</div>
                 <div class="type-example">e.g., /v1/interactions, /v1/realtime</div>
@@ -187,6 +255,7 @@
                 class:selected={requestType === "model"}
                 on:click={() => requestType = "model"}
                 disabled={isSubmitting}
+                aria-pressed={requestType === "model"}
               >
                 <div class="type-label">Model</div>
                 <div class="type-example">e.g., GPT-4 Turbo, Claude 3.5</div>
@@ -405,6 +474,25 @@
     line-height: 1.5;
   }
 
+  .modal-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.875rem;
+  }
+
+  .modal-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.375rem 0.625rem;
+    border-radius: 999px;
+    background: var(--bg-secondary, #f9fafb);
+    border: 1px solid var(--border-color, #e5e7eb);
+    color: var(--text-secondary, #4b5563);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
   .close-button {
     background: none;
     border: none;
@@ -434,6 +522,14 @@
   .form-group label {
     display: block;
     margin-bottom: 0.625rem;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    color: var(--text-color, #1a1a1a);
+  }
+
+  .field-label {
+    display: block;
+    margin: 0 0 0.625rem 0;
     font-weight: 600;
     font-size: 0.9375rem;
     color: var(--text-color, #1a1a1a);
@@ -522,8 +618,8 @@
   }
 
   .type-button.selected {
-    background: #000 !important;
-    border-color: #000 !important;
+    background: var(--litellm-primary, #6366f1) !important;
+    border-color: var(--litellm-primary, #6366f1) !important;
     color: white;
   }
 
@@ -582,8 +678,8 @@
   .form-group input:not([type="checkbox"]):focus,
   .form-group textarea:focus {
     outline: none;
-    border-color: #000;
-    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
+    border-color: var(--litellm-primary, #6366f1);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
   }
 
   .form-group input:not([type="checkbox"])::placeholder,
@@ -618,7 +714,7 @@
     cursor: pointer;
     flex-shrink: 0;
     padding: 0;
-    accent-color: #000;
+    accent-color: var(--litellm-primary, #6366f1);
   }
 
   .checkbox-label input[type="checkbox"]:disabled {
@@ -644,8 +740,8 @@
     padding: 0.875rem 1.75rem;
     font-size: 1rem;
     font-weight: 600;
-    border-radius: 100px;
-    border: none;
+    border-radius: 12px;
+    border: 1px solid transparent;
     cursor: pointer;
     transition: all 0.2s ease;
     font-family: inherit;
@@ -660,20 +756,20 @@
   }
 
   .btn-primary {
-    background-color: #000;
+    background-color: var(--litellm-primary, #6366f1);
     color: white;
   }
 
   .btn-primary:hover:not(:disabled) {
-    background-color: #333;
+    background-color: var(--litellm-primary-hover, #4f46e5);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
   }
 
   .btn-secondary {
     background-color: transparent;
     color: var(--muted-color, #6b7280);
-    border: 2px solid var(--border-color, #e5e7eb);
+    border-color: var(--border-color, #e5e7eb);
   }
 
   .btn-secondary:hover:not(:disabled) {

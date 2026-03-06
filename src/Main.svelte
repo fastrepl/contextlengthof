@@ -44,7 +44,9 @@
   function selectTab(tab: "models" | "providers" | "cookbook" | "guardrails", updateUrl = true) {
     activeTab = tab;
     closeMobileMenu();
-    trackTabChange(tab);
+    if (tab === "models" || tab === "providers") {
+      trackTabChange(tab);
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
     
     if (updateUrl) {
@@ -65,6 +67,7 @@
   let providerEndpointCount = 0;
   let modelCount = 0;
   let statsLoading = true;
+  let statsError = "";
 
   let displayModelCount = 0;
   let displayProviderCount = 0;
@@ -83,24 +86,16 @@
     requestAnimationFrame(step);
   }
 
-  onMount(async () => {
-    initAnalytics();
-    trackPageView('Home');
-
-    const initialTab = getTabFromPath(window.location.pathname);
-    activeTab = initialTab;
-    
-    window.history.replaceState({ tab: initialTab }, "", window.location.pathname);
-    
-    window.addEventListener("popstate", handlePopState);
-
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('request') === 'true') {
-      requestForm?.openModal();
-    }
+  async function loadStats() {
+    statsLoading = true;
+    statsError = "";
 
     try {
       const providersResponse = await fetch(PROVIDERS_URL);
+      if (!providersResponse.ok) {
+        throw new Error(`Providers request failed (${providersResponse.status})`);
+      }
+
       const providersData = await providersResponse.json();
       
       if (providersData.providers) {
@@ -123,6 +118,10 @@
       }
 
       const modelsResponse = await fetch(MODELS_URL);
+      if (!modelsResponse.ok) {
+        throw new Error(`Models request failed (${modelsResponse.status})`);
+      }
+
       const modelsText = await modelsResponse.text();
       const modelsData = JSON.parse(modelsText);
       modelCount = Object.keys(modelsData).length;
@@ -135,8 +134,28 @@
       animateValue(0, providerEndpointCount, 700, (v) => displayComboCount = v);
     } catch (error) {
       console.error("Failed to load statistics:", error);
+      statsError = "Live repository statistics are temporarily unavailable.";
       statsLoading = false;
     }
+  }
+
+  onMount(() => {
+    initAnalytics();
+    trackPageView('Home');
+
+    const initialTab = getTabFromPath(window.location.pathname);
+    activeTab = initialTab;
+    
+    window.history.replaceState({ tab: initialTab }, "", window.location.pathname);
+    
+    window.addEventListener("popstate", handlePopState);
+
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('request') === 'true') {
+      requestForm?.openModal();
+    }
+
+    void loadStats();
 
     return () => {
       window.removeEventListener("popstate", handlePopState);
@@ -276,8 +295,23 @@
         {/each}
       </div>
     </div>
+  {:else if statsError}
+    <div class="stats-section">
+      <div class="stats-error">
+        <div>
+          <p class="stats-error-label">Live status</p>
+          <h3>{statsError}</h3>
+          <p>Retry to refresh counts from the LiteLLM GitHub source of truth.</p>
+        </div>
+        <button class="stats-retry" on:click={loadStats}>Retry stats</button>
+      </div>
+    </div>
   {:else}
     <div class="stats-section">
+      <div class="stats-caption">
+        <span class="stats-caption-dot"></span>
+        Live counts from LiteLLM GitHub resources
+      </div>
       <div class="stats-container">
         <button class="stat-card" on:click={() => selectTab("models")}>
           <div class="stat-value">{displayModelCount.toLocaleString()}</div>
@@ -692,6 +726,73 @@
     gap: 0.75rem;
   }
 
+  .stats-caption {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.8125rem;
+    color: var(--muted-color);
+    font-weight: 500;
+  }
+
+  .stats-caption-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #10b981;
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.12);
+  }
+
+  .stats-error {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+  }
+
+  .stats-error-label {
+    margin: 0 0 0.4rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--litellm-primary);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .stats-error h3 {
+    margin: 0 0 0.35rem;
+    font-size: 1rem;
+  }
+
+  .stats-error p {
+    margin: 0;
+    color: var(--muted-color);
+    line-height: 1.5;
+  }
+
+  .stats-retry {
+    border: 1px solid var(--border-color-strong);
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border-radius: 10px;
+    padding: 0.625rem 0.875rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .stats-retry:hover {
+    border-color: var(--litellm-primary);
+    color: var(--litellm-primary);
+  }
+
   .stat-card {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
@@ -765,6 +866,9 @@
 
   @media (max-width: 640px) {
     .stats-section { padding: 1rem; }
+    .stats-error {
+      flex-direction: column;
+    }
     .stats-container {
       grid-template-columns: repeat(2, 1fr);
       gap: 0.5rem;

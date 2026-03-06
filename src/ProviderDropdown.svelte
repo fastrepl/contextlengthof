@@ -1,21 +1,53 @@
 <script lang="ts">
+  import { onDestroy, tick } from "svelte";
   import { fly } from "svelte/transition";
   import { getProviderInitial, getProviderLogo } from "./providers";
 
   export let providers: string[] = [];
-  export let selectedProvider: string = "";
+  export let selectedProvider = "";
 
   let isOpen = false;
   let searchQuery = "";
+  let activeIndex = 0;
+  let rootElement: HTMLDivElement;
+  let triggerButton: HTMLButtonElement;
+  let searchInput: HTMLInputElement;
 
-  $: filteredProviders = providers.filter(provider => 
-    provider.toLowerCase().includes(searchQuery.toLowerCase())
+  $: options = ["", ...providers];
+  $: filteredProviders = options.filter((provider) =>
+    provider.toLowerCase().includes(searchQuery.toLowerCase()),
   );
+  $: if (!isOpen) {
+    activeIndex = Math.max(
+      0,
+      filteredProviders.findIndex((provider) => provider === selectedProvider),
+    );
+  }
+
+  function open() {
+    isOpen = true;
+    searchQuery = "";
+    activeIndex = Math.max(
+      0,
+      filteredProviders.findIndex((provider) => provider === selectedProvider),
+    );
+
+    tick().then(() => {
+      searchInput?.focus();
+    });
+  }
+
+  function close() {
+    isOpen = false;
+    searchQuery = "";
+    triggerButton?.focus();
+  }
 
   function toggle() {
-    isOpen = !isOpen;
     if (isOpen) {
-      searchQuery = "";
+      close();
+    } else {
+      open();
     }
   }
 
@@ -23,25 +55,97 @@
     selectedProvider = provider;
     isOpen = false;
     searchQuery = "";
+    triggerButton?.focus();
   }
 
-  function handleClickOutside(event: MouseEvent) {
-    const target = event.target as HTMLElement;
-    if (!target.closest('.provider-dropdown')) {
-      isOpen = false;
+  function moveActiveIndex(step: number) {
+    if (!filteredProviders.length) return;
+
+    activeIndex = (activeIndex + step + filteredProviders.length) % filteredProviders.length;
+    const activeOption = document.getElementById(getOptionId(filteredProviders[activeIndex]));
+    activeOption?.scrollIntoView({ block: "nearest" });
+  }
+
+  function getOptionId(provider: string) {
+    return `provider-option-${(provider || "all").replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+  }
+
+  function handleTriggerKeydown(event: KeyboardEvent) {
+    if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      if (!isOpen) {
+        open();
+      } else {
+        moveActiveIndex(1);
+      }
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!isOpen) {
+        open();
+      } else {
+        moveActiveIndex(-1);
+      }
+    }
+
+    if (event.key === "Escape" && isOpen) {
+      event.preventDefault();
+      close();
     }
   }
 
-  if (typeof window !== 'undefined') {
-    document.addEventListener('click', handleClickOutside);
+  function handleSearchKeydown(event: KeyboardEvent) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      moveActiveIndex(1);
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      moveActiveIndex(-1);
+    }
+
+    if (event.key === "Enter" && filteredProviders[activeIndex] !== undefined) {
+      event.preventDefault();
+      select(filteredProviders[activeIndex]);
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      close();
+    }
   }
+
+  function handleDocumentClick(event: MouseEvent) {
+    const target = event.target as Node;
+    if (isOpen && rootElement && !rootElement.contains(target)) {
+      isOpen = false;
+      searchQuery = "";
+    }
+  }
+
+  if (typeof document !== "undefined") {
+    document.addEventListener("click", handleDocumentClick);
+  }
+
+  onDestroy(() => {
+    if (typeof document !== "undefined") {
+      document.removeEventListener("click", handleDocumentClick);
+    }
+  });
 </script>
 
-<div class="provider-dropdown">
-  <button 
-    class="dropdown-trigger" 
+<div class="provider-dropdown" bind:this={rootElement}>
+  <button
+    bind:this={triggerButton}
+    class="dropdown-trigger"
     on:click|stopPropagation={toggle}
+    on:keydown={handleTriggerKeydown}
     type="button"
+    aria-expanded={isOpen}
+    aria-haspopup="listbox"
+    aria-controls="provider-listbox"
   >
     <div class="dropdown-trigger-content">
       {#if selectedProvider}
@@ -61,41 +165,52 @@
       <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
   </button>
-  
+
   {#if isOpen}
     <div class="dropdown-menu" transition:fly={{ y: -10, duration: 200 }}>
       <div class="dropdown-search">
         <input
+          bind:this={searchInput}
           type="text"
           bind:value={searchQuery}
           placeholder="Search providers..."
           class="search-input"
           on:click|stopPropagation
-          autofocus
+          on:keydown={handleSearchKeydown}
+          role="combobox"
+          aria-expanded={isOpen}
+          aria-controls="provider-listbox"
+          aria-activedescendant={filteredProviders[activeIndex] !== undefined ? getOptionId(filteredProviders[activeIndex]) : undefined}
         />
       </div>
-      <div class="dropdown-options">
-        <button
-          class="dropdown-option"
-          class:selected={!selectedProvider}
-          on:click={() => select("")}
-          type="button"
-        >
-          <span>All Providers</span>
-        </button>
-        {#each filteredProviders as provider}
+      <div class="dropdown-status">
+        {filteredProviders.length} provider{filteredProviders.length === 1 ? "" : "s"}
+      </div>
+      <div class="dropdown-options" id="provider-listbox" role="listbox" aria-label="Providers">
+        {#each filteredProviders as provider, indexValue}
           <button
+            id={getOptionId(provider)}
             class="dropdown-option"
             class:selected={selectedProvider === provider}
-            on:click={() => select(provider)}
+            class:active={activeIndex === indexValue}
             type="button"
+            role="option"
+            aria-selected={selectedProvider === provider}
+            on:mouseenter={() => {
+              activeIndex = indexValue;
+            }}
+            on:click={() => select(provider)}
           >
-            {#if getProviderLogo(provider)}
-              <img src={getProviderLogo(provider)} alt={provider} class="provider-logo" />
+            {#if provider}
+              {#if getProviderLogo(provider)}
+                <img src={getProviderLogo(provider)} alt={provider} class="provider-logo" />
+              {:else}
+                <div class="provider-avatar">{getProviderInitial(provider)}</div>
+              {/if}
+              <span class="provider-name">{provider}</span>
             {:else}
-              <div class="provider-avatar">{getProviderInitial(provider)}</div>
+              <span>All Providers</span>
             {/if}
-            <span class="provider-name">{provider}</span>
           </button>
         {/each}
         {#if filteredProviders.length === 0}
@@ -190,9 +305,18 @@
   }
 
   .dropdown-search {
-    padding: 0.875rem;
+    padding: 0.875rem 0.875rem 0.625rem;
     border-bottom: 1px solid var(--border-color);
     background-color: var(--card-bg);
+  }
+
+  .dropdown-status {
+    padding: 0.5rem 0.875rem 0;
+    font-size: 0.75rem;
+    color: var(--muted-color);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
   }
 
   .search-input {
@@ -239,17 +363,19 @@
     font-size: 0.9375rem;
   }
 
-  .dropdown-option:hover {
+  .dropdown-option:hover,
+  .dropdown-option.active {
     background-color: var(--hover-bg);
   }
 
   .dropdown-option.selected {
     background-color: var(--bg-tertiary);
     color: var(--litellm-primary);
-    font-weight: 500;
+    font-weight: 600;
   }
 
-  .dropdown-option.selected:hover {
+  .dropdown-option.selected:hover,
+  .dropdown-option.selected.active {
     background-color: var(--bg-tertiary);
   }
 
@@ -285,7 +411,6 @@
     font-size: 0.875rem;
   }
 
-  /* Scrollbar styling */
   .dropdown-options::-webkit-scrollbar {
     width: 8px;
   }

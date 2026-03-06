@@ -111,6 +111,14 @@
     return endpointsMetadata[endpoint]?.url || DOCS_URL;
   }
 
+  function handleProviderImageError(event: Event) {
+    const target = event.currentTarget as HTMLImageElement | null;
+    if (!target) return;
+    target.style.display = "none";
+    const fallback = target.nextElementSibling as HTMLElement | null;
+    if (fallback) fallback.style.display = "flex";
+  }
+
   $: {
     if (searchQuery.trim() === "") {
       filteredEndpoints = allEndpoints;
@@ -259,10 +267,7 @@
                         src={getProviderLogo(provider)} 
                         alt={provider}
                         class="provider-logo-img"
-                        on:error={(e) => {
-                          e.currentTarget.style.display = 'none';
-                          e.currentTarget.nextElementSibling.style.display = 'flex';
-                        }}
+                        on:error={handleProviderImageError}
                       />
                       <div class="provider-initial" style="display: none;">
                         {getProviderInitial(provider)}
