@@ -50,7 +50,7 @@
   }
 
   // Quick start tab state per model
-  let codeTabStates: Record<string, "sdk" | "proxy"> = {};
+  let codeTabStates: Record<string, "sdk" | "proxy" | "json"> = {};
 
   onMount(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -258,6 +258,15 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
       "rerank": "Rerank",
     };
     return labels[mode] || mode;
+  }
+
+  function getRawModelJson(name: string): string {
+    if (!index) return "{}";
+    const allItems = (index as any)["_docs"] as Item[];
+    const item = allItems.find((i: Item) => i.name === name);
+    if (!item) return "{}";
+    const { name: _n, ...rest } = item;
+    return JSON.stringify(rest, null, 2);
   }
 
   function filterResults(
@@ -643,14 +652,23 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
                             class:active={codeTabStates[name] === "proxy"}
                             on:click|stopPropagation={() => { codeTabStates[name] = "proxy"; codeTabStates = codeTabStates; }}
                           >AI Gateway (Proxy)</button>
+                          <button
+                            class="code-tab"
+                            class:active={codeTabStates[name] === "json"}
+                            on:click|stopPropagation={() => { codeTabStates[name] = "json"; codeTabStates = codeTabStates; }}
+                          >Raw JSON</button>
                         </div>
                         {#if !codeTabStates[name] || codeTabStates[name] === "sdk"}
                           <button class="copy-code-btn" on:click|stopPropagation={() => copyToClipboard(`from litellm import completion\n\nresponse = completion(\n    model="${getDisplayModelName(name, litellm_provider)}",\n    messages=[{"role": "user", "content": "Hello!"}]\n)`)}>
                             {copiedModel.includes("from litellm") ? "Copied!" : "Copy"}
                           </button>
-                        {:else}
+                        {:else if codeTabStates[name] === "proxy"}
                           <button class="copy-code-btn" on:click|stopPropagation={() => copyToClipboard(`curl http://0.0.0.0:4000/v1/chat/completions \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer sk-1234" \\\n  -d '{\n    "model": "${getDisplayModelName(name, litellm_provider)}",\n    "messages": [{"role": "user", "content": "Hello!"}]\n  }'`)}>
                             {copiedModel.includes("curl") ? "Copied!" : "Copy"}
+                          </button>
+                        {:else}
+                          <button class="copy-code-btn" on:click|stopPropagation={() => copyToClipboard(getRawModelJson(name))}>
+                            {copiedModel === getRawModelJson(name) ? "Copied!" : "Copy"}
                           </button>
                         {/if}
                       </div>
@@ -661,7 +679,7 @@ response = completion(
     model=<span class="code-str">"{getDisplayModelName(name, litellm_provider)}"</span>,
     messages=[{`{`}<span class="code-str">"role"</span>: <span class="code-str">"user"</span>, <span class="code-str">"content"</span>: <span class="code-str">"Hello!"</span>{`}`}]
 )</code></pre>
-                      {:else}
+                      {:else if codeTabStates[name] === "proxy"}
                         <pre class="code-snippet"><code><span class="code-comment"># Start proxy: litellm --model {getDisplayModelName(name, litellm_provider)}</span>
 
 curl http://0.0.0.0:4000/v1/chat/completions \
@@ -671,6 +689,8 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     "model": "{getDisplayModelName(name, litellm_provider)}",
     "messages": [{`{`}"role": "user", "content": "Hello!"{`}`}]
   {`}`}'</span></code></pre>
+                      {:else}
+                        <pre class="code-snippet"><code>{getRawModelJson(name)}</code></pre>
                       {/if}
                     </div>
 
@@ -1408,6 +1428,9 @@ curl http://0.0.0.0:4000/v1/chat/completions \
 
   .code-tab:last-child {
     border-radius: 0 6px 6px 0;
+  }
+
+  .code-tab + .code-tab {
     border-left: none;
   }
 
