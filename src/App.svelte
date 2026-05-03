@@ -223,14 +223,14 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   }
 
   function formatCost(costPerToken: number | undefined): string {
-    if (typeof costPerToken !== "number" || !isFinite(costPerToken) || costPerToken <= 0) return "—";
+    if (!costPerToken) return "—";
     const perMillion = costPerToken * 1000000;
     if (perMillion < 0.01) return "<$0.01";
     return "$" + perMillion.toFixed(2);
   }
 
   function formatContext(tokens: number | undefined): string {
-    if (typeof tokens !== "number" || !isFinite(tokens) || tokens <= 0) return "—";
+    if (!tokens || tokens <= 0) return "—";
     if (tokens >= 1000000) return (tokens / 1000000).toFixed(0) + "M";
     if (tokens >= 1000) return (tokens / 1000).toFixed(0) + "K";
     return tokens.toString();
@@ -248,24 +248,19 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     return badges;
   }
 
-  const KNOWN_MODES: Record<string, string> = {
-    "chat": "Chat",
-    "completion": "Completion",
-    "embedding": "Embedding",
-    "image_generation": "Image Gen",
-    "audio_transcription": "Transcription",
-    "audio_speech": "TTS",
-    "moderation": "Moderation",
-    "rerank": "Rerank",
-  };
-
   function getModeLabel(mode: string | undefined): string {
     if (!mode) return "";
-    return KNOWN_MODES[mode] || mode;
-  }
-
-  function isKnownMode(mode: string | undefined): boolean {
-    return typeof mode === "string" && mode in KNOWN_MODES;
+    const labels: Record<string, string> = {
+      "chat": "Chat",
+      "completion": "Completion",
+      "embedding": "Embedding",
+      "image_generation": "Image Gen",
+      "audio_transcription": "Transcription",
+      "audio_speech": "TTS",
+      "moderation": "Moderation",
+      "rerank": "Rerank",
+    };
+    return labels[mode] || mode;
   }
 
   function filterResults(
@@ -533,7 +528,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
                   </div>
                   <div class="model-name-group">
                     <span class="model-title" title={getDisplayModelName(name, litellm_provider)}>{getDisplayModelName(name, litellm_provider)}</span>
-                    {#if isKnownMode(mode)}
+                    {#if mode}
                       <span class="mode-badge">{getModeLabel(mode)}</span>
                     {/if}
                   </div>
@@ -594,19 +589,19 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
                         <div class="info-rows">
                           <div class="info-row">
                             <span class="info-label">Provider</span>
-                            <span class="info-value">{litellm_provider && !litellm_provider.includes(" ") && !litellm_provider.includes("/") ? litellm_provider : "—"}</span>
+                            <span class="info-value">{litellm_provider || "—"}</span>
                           </div>
                           <div class="info-row">
                             <span class="info-label">Mode</span>
-                            <span class="info-value">{isKnownMode(mode) ? getModeLabel(mode) : "—"}</span>
+                            <span class="info-value">{mode ? getModeLabel(mode) : "—"}</span>
                           </div>
                           <div class="info-row">
                             <span class="info-label">Max Input</span>
-                            <span class="info-value">{typeof max_input_tokens === "number" && max_input_tokens > 0 ? max_input_tokens.toLocaleString() + " tokens" : "—"}</span>
+                            <span class="info-value">{max_input_tokens ? max_input_tokens.toLocaleString() + " tokens" : "—"}</span>
                           </div>
                           <div class="info-row">
                             <span class="info-label">Max Output</span>
-                            <span class="info-value">{typeof max_output_tokens === "number" && max_output_tokens > 0 ? max_output_tokens.toLocaleString() + " tokens" : "—"}</span>
+                            <span class="info-value">{max_output_tokens ? max_output_tokens.toLocaleString() + " tokens" : "—"}</span>
                           </div>
                         </div>
                       </div>
