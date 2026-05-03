@@ -7,5 +7,6 @@ export default defineConfig({
   server: {
     // Enable SPA fallback for client-side routing
     historyApiFallback: true,
+    host: true,
   },
 });

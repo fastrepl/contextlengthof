@@ -32,20 +32,26 @@
   const PROVIDERS_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/provider_endpoints_support.json";
   const DOCS_URL = "https://docs.litellm.ai/docs/providers";
 
+  // Upstream JSON ships a few broken /docs/providers/* URLs that 404.
+  // Map provider key -> correct doc URL.
+  const PROVIDER_URL_OVERRIDES: Record<string, string> = {
+    a2a: "https://docs.litellm.ai/docs/a2a",
+  };
+
   onMount(async () => {
     try {
       const response = await fetch(PROVIDERS_URL);
       const data = await response.json();
-      
+
       if (data.endpoints) {
         endpointsMetadata = data.endpoints;
       }
-      
+
       if (data.providers) {
         providers = Object.entries(data.providers).map(([provider, info]: [string, any]) => ({
           provider,
           display_name: info.display_name || provider,
-          url: info.url || DOCS_URL,
+          url: PROVIDER_URL_OVERRIDES[provider] || info.url || DOCS_URL,
           endpoints: info.endpoints || {}
         }));
       }

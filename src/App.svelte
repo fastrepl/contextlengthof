@@ -75,11 +75,14 @@
       .then((res) => res.text())
       .then((text) => {
         lines = text.split("\n");
-        const items: Item[] = Object.entries(JSON.parse(text)).map(
-          ([k, v]: any) => ({ name: k, ...v }),
-        );
+        // Upstream JSON ships a "sample_spec" pseudo-entry that documents
+        // the schema (each field's value is a description string, not data).
+        // It is not a real model — drop it from the table.
+        const items: Item[] = Object.entries(JSON.parse(text))
+          .filter(([k]) => k !== "sample_spec")
+          .map(([k, v]: any) => ({ name: k, ...v }));
 
-        providers = [...new Set(items.map((i) => i.litellm_provider))];
+        providers = [...new Set(items.map((i) => i.litellm_provider).filter(Boolean))];
         providers.sort();
 
         index = new Fuse(items, {
@@ -220,14 +223,14 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   }
 
   function formatCost(costPerToken: number | undefined): string {
-    if (!costPerToken) return "—";
+    if (typeof costPerToken !== "number" || !isFinite(costPerToken) || costPerToken <= 0) return "—";
     const perMillion = costPerToken * 1000000;
     if (perMillion < 0.01) return "<$0.01";
     return "$" + perMillion.toFixed(2);
   }
 
   function formatContext(tokens: number | undefined): string {
-    if (!tokens || tokens <= 0) return "—";
+    if (typeof tokens !== "number" || !isFinite(tokens) || tokens <= 0) return "—";
     if (tokens >= 1000000) return (tokens / 1000000).toFixed(0) + "M";
     if (tokens >= 1000) return (tokens / 1000).toFixed(0) + "K";
     return tokens.toString();
@@ -245,19 +248,24 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     return badges;
   }
 
+  const KNOWN_MODES: Record<string, string> = {
+    "chat": "Chat",
+    "completion": "Completion",
+    "embedding": "Embedding",
+    "image_generation": "Image Gen",
+    "audio_transcription": "Transcription",
+    "audio_speech": "TTS",
+    "moderation": "Moderation",
+    "rerank": "Rerank",
+  };
+
   function getModeLabel(mode: string | undefined): string {
     if (!mode) return "";
-    const labels: Record<string, string> = {
-      "chat": "Chat",
-      "completion": "Completion",
-      "embedding": "Embedding",
-      "image_generation": "Image Gen",
-      "audio_transcription": "Transcription",
-      "audio_speech": "TTS",
-      "moderation": "Moderation",
-      "rerank": "Rerank",
-    };
-    return labels[mode] || mode;
+    return KNOWN_MODES[mode] || mode;
+  }
+
+  function isKnownMode(mode: string | undefined): boolean {
+    return typeof mode === "string" && mode in KNOWN_MODES;
   }
 
   function filterResults(
@@ -354,25 +362,25 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
       <img class="trust-logo-img" src="https://github.com/user-attachments/assets/caf270a2-5aee-45c4-8222-41a2070c4f19" alt="Google ADK" height="28" />
       <img class="trust-logo-img" src="https://github.com/user-attachments/assets/0be4bd8a-7cfa-48d3-9090-f415fe948280" alt="Greptile" height="28" />
       <img class="trust-logo-img" src="https://github.com/user-attachments/assets/a6150c4c-149e-4cae-888b-8b92be6e003f" alt="OpenHands" height="28" />
-      <span class="trust-logo-text">Netflix</span>
+      <span class="trust-logo-text" data-brand="netflix">Netflix</span>
       <img class="trust-logo-img" src="https://github.com/user-attachments/assets/c02f7be0-8c2e-4d27-aea7-7c024bfaebc0" alt="OpenAI Agents SDK" height="28" />
       <img class="trust-logo-img trust-logo-svg" src="https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/adobe-text.svg" alt="Adobe" height="28" />
-      <span class="trust-logo-text trust-logo-icon">
+      <span class="trust-logo-text trust-logo-icon" data-brand="twilio">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.381-.008.008 5.352 0 11.971V12c0 6.64 5.359 12 12 12 6.64 0 12-5.36 12-12 0-6.641-5.36-12-12-12zm0 20.801c-4.846.015-8.786-3.904-8.801-8.75V12c-.014-4.846 3.904-8.786 8.75-8.801H12c4.847-.014 8.786 3.904 8.801 8.75V12c.015 4.847-3.904 8.786-8.75 8.801H12zm5.44-11.76c0 1.359-1.12 2.479-2.481 2.479-1.366-.007-2.472-1.113-2.479-2.479 0-1.361 1.12-2.481 2.479-2.481 1.361 0 2.481 1.12 2.481 2.481zm0 5.919c0 1.36-1.12 2.48-2.481 2.48-1.367-.008-2.473-1.114-2.479-2.48 0-1.359 1.12-2.479 2.479-2.479 1.361-.001 2.481 1.12 2.481 2.479zm-5.919 0c0 1.36-1.12 2.48-2.479 2.48-1.368-.007-2.475-1.113-2.481-2.48 0-1.359 1.12-2.479 2.481-2.479 1.358-.001 2.479 1.12 2.479 2.479zm0-5.919c0 1.359-1.12 2.479-2.479 2.479-1.367-.007-2.475-1.112-2.481-2.479 0-1.361 1.12-2.481 2.481-2.481 1.358 0 2.479 1.12 2.479 2.481z"/></svg>
         Twilio
       </span>
-      <span class="trust-logo-text trust-logo-icon">
+      <span class="trust-logo-text trust-logo-icon" data-brand="zurich">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="12"/><text x="12" y="16.5" text-anchor="middle" fill="white" font-size="13" font-weight="700" font-family="Arial,sans-serif">Z</text></svg>
         Zurich
       </span>
       <img class="trust-logo-img trust-logo-svg" src="https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/zapier-text.svg" alt="Zapier" height="28" />
-      <span class="trust-logo-text">Rocket Money</span>
-      <span class="trust-logo-text" style="font-style: italic;">Lemonade</span>
-      <span class="trust-logo-text trust-logo-icon">
+      <span class="trust-logo-text" data-brand="rocketmoney">Rocket Money</span>
+      <span class="trust-logo-text" data-brand="lemonade" style="font-style: italic;">Lemonade</span>
+      <span class="trust-logo-text trust-logo-icon" data-brand="weather">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.47 6.07a6.26 6.26 0 00-3.24-3.47A6.04 6.04 0 0011.32 2c-3.36 0-6.2 2.76-6.2 6.36a7.1 7.1 0 001.65 4.52L12 22l5.24-9.12a7.1 7.1 0 001.64-4.52c0-.77-.14-1.54-.41-2.29zM12 11.13a2.89 2.89 0 110-5.78 2.89 2.89 0 010 5.78z"/></svg>
         The Weather Company
       </span>
-      <span class="trust-logo-text" style="font-weight: 300; letter-spacing: 0.15em;">samsara</span>
+      <span class="trust-logo-text" data-brand="samsara" style="font-weight: 300; letter-spacing: 0.15em;">samsara</span>
     </div>
   </div>
 
@@ -525,7 +533,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
                   </div>
                   <div class="model-name-group">
                     <span class="model-title" title={getDisplayModelName(name, litellm_provider)}>{getDisplayModelName(name, litellm_provider)}</span>
-                    {#if mode}
+                    {#if isKnownMode(mode)}
                       <span class="mode-badge">{getModeLabel(mode)}</span>
                     {/if}
                   </div>
@@ -586,19 +594,19 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
                         <div class="info-rows">
                           <div class="info-row">
                             <span class="info-label">Provider</span>
-                            <span class="info-value">{litellm_provider || "—"}</span>
+                            <span class="info-value">{litellm_provider && !litellm_provider.includes(" ") && !litellm_provider.includes("/") ? litellm_provider : "—"}</span>
                           </div>
                           <div class="info-row">
                             <span class="info-label">Mode</span>
-                            <span class="info-value">{mode ? getModeLabel(mode) : "—"}</span>
+                            <span class="info-value">{isKnownMode(mode) ? getModeLabel(mode) : "—"}</span>
                           </div>
                           <div class="info-row">
                             <span class="info-label">Max Input</span>
-                            <span class="info-value">{max_input_tokens ? max_input_tokens.toLocaleString() + " tokens" : "—"}</span>
+                            <span class="info-value">{typeof max_input_tokens === "number" && max_input_tokens > 0 ? max_input_tokens.toLocaleString() + " tokens" : "—"}</span>
                           </div>
                           <div class="info-row">
                             <span class="info-label">Max Output</span>
-                            <span class="info-value">{max_output_tokens ? max_output_tokens.toLocaleString() + " tokens" : "—"}</span>
+                            <span class="info-value">{typeof max_output_tokens === "number" && max_output_tokens > 0 ? max_output_tokens.toLocaleString() + " tokens" : "—"}</span>
                           </div>
                         </div>
                       </div>
@@ -817,12 +825,24 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     flex-wrap: wrap;
   }
 
+  /* Unified hover transition for all trust logos (img + text + svg-icon).
+     Same duration/easing across the board so each one fades smoothly
+     into its colored state. */
+  .trust-logo-img,
+  .trust-logo-text,
+  .trust-logo-icon svg,
+  .trust-logo-svg {
+    transition: color 0.3s ease-out,
+                fill 0.3s ease-out,
+                opacity 0.3s ease-out,
+                filter 0.3s ease-out;
+  }
+
   .trust-logo-img {
     height: 28px;
     object-fit: contain;
     opacity: 0.55;
     filter: grayscale(100%);
-    transition: all 0.2s ease;
   }
 
   .trust-logo-img:hover {
@@ -841,11 +861,47 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     }
   }
 
+  /* Text logos use the same grayscale->color treatment as image logos.
+     The brand color is the BASE color; the grayscale filter desaturates
+     it by default, and removing the filter on hover reveals it. */
   .trust-logo-text {
     font-size: 1.125rem;
     font-weight: 700;
-    color: var(--border-color-strong);
+    color: var(--text-color);
     letter-spacing: 0.04em;
+    opacity: 0.55;
+    filter: grayscale(100%);
+    cursor: default;
+    /* Promote to its own compositing layer so filter transitions don't
+       cause subpixel jitter in the inline SVG + text combo (Zurich,
+       Weather Company, Twilio). */
+    transform: translateZ(0);
+    will-change: filter, opacity;
+    backface-visibility: hidden;
+  }
+
+  .trust-logo-text:hover {
+    opacity: 0.9;
+    filter: grayscale(0%);
+  }
+
+  .trust-logo-text[data-brand="netflix"]     { color: #E50914; }
+  .trust-logo-text[data-brand="lemonade"]    { color: #FF0083; }
+  .trust-logo-text[data-brand="rocketmoney"] { color: #00D4AA; }
+  .trust-logo-text[data-brand="twilio"]      { color: #F22F46; }
+  .trust-logo-text[data-brand="zurich"]      { color: #2167AE; }
+  .trust-logo-text[data-brand="weather"]     { color: #00ABEB; }
+  .trust-logo-text[data-brand="samsara"]     { color: #1F6FB2; }
+
+  @media (prefers-color-scheme: dark) {
+    .trust-logo-text {
+      filter: grayscale(100%) brightness(2);
+      opacity: 0.5;
+    }
+    .trust-logo-text:hover {
+      filter: grayscale(0%) brightness(1.2);
+      opacity: 0.9;
+    }
   }
 
   .trust-logo-icon {
@@ -856,26 +912,27 @@ curl http://0.0.0.0:4000/v1/chat/completions \
 
   .trust-logo-icon svg {
     flex-shrink: 0;
+    fill: currentColor;
   }
 
   .trust-logo-svg {
     filter: brightness(0);
-    opacity: 0.45;
+    opacity: 0.55;
   }
 
   .trust-logo-svg:hover {
     filter: brightness(0);
-    opacity: 0.8;
+    opacity: 1;
   }
 
   @media (prefers-color-scheme: dark) {
     .trust-logo-svg {
       filter: brightness(0) invert(1);
-      opacity: 0.5;
+      opacity: 0.6;
     }
     .trust-logo-svg:hover {
       filter: brightness(0) invert(1);
-      opacity: 0.9;
+      opacity: 1;
     }
   }
 
@@ -1095,9 +1152,6 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     background-color: var(--bg-secondary);
     white-space: nowrap;
     user-select: none;
-    position: sticky;
-    top: 63px;
-    z-index: 10;
   }
 
   .th-model { padding-left: 1rem; }
@@ -1125,6 +1179,7 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     border-bottom: 1px solid var(--border-color);
     transition: background-color 0.1s ease;
     cursor: pointer;
+    height: 52px;
   }
 
   tbody tr.model-row:hover {
@@ -1153,6 +1208,9 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     display: flex;
     align-items: center;
     gap: 0.625rem;
+    flex-wrap: nowrap;
+    min-width: 0;
+    min-height: 32px;
   }
 
   .expand-icon {
@@ -1224,6 +1282,8 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     align-items: center;
     gap: 0.5rem;
     min-width: 0;
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
   }
 
   .model-title {
@@ -1233,6 +1293,8 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .mode-badge {
@@ -1246,6 +1308,9 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     text-transform: uppercase;
     letter-spacing: 0.03em;
     flex-shrink: 0;
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .context-cell {
@@ -1334,6 +1399,8 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     align-items: center;
     padding: 0.375rem 0;
     border-bottom: 1px solid var(--border-color);
+    gap: 0.75rem;
+    min-width: 0;
   }
 
   .info-row:last-child { border-bottom: none; }
@@ -1341,6 +1408,7 @@ curl http://0.0.0.0:4000/v1/chat/completions \
   .info-label {
     font-size: 0.8125rem;
     color: var(--muted-color);
+    flex-shrink: 0;
   }
 
   .info-value {
@@ -1348,6 +1416,9 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     font-weight: 600;
     color: var(--text-color);
     font-family: 'JetBrains Mono', monospace;
+    text-align: right;
+    overflow-wrap: anywhere;
+    min-width: 0;
   }
 
   .feature-list {
@@ -1449,9 +1520,13 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     overflow-x: auto;
     background: var(--code-bg);
     color: var(--code-text);
+    max-width: 100%;
+    box-sizing: border-box;
+    -webkit-overflow-scrolling: touch;
   }
 
-  .code-snippet code { display: block; }
+  .code-snippet code { display: block; white-space: pre; }
+  .detail-code-section { max-width: 100%; min-width: 0; }
   .code-kw { color: #8b5cf6; }
   .code-str { color: #10b981; }
 
@@ -1518,6 +1593,12 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     .th-hide-mobile, .td-hide-mobile { display: none; }
   }
 
+  /* Tablet — intermediate code-snippet size between desktop and phone */
+  @media (max-width: 1024px) {
+    .code-snippet { font-size: 0.6875rem; line-height: 1.5; padding: 0.75rem; }
+    .code-snippet code { white-space: pre-wrap; word-break: break-word; }
+  }
+
   @media (max-width: 768px) {
     .hero { padding: 2.5rem 1rem 1.5rem; }
     .hero-title { font-size: 2rem; }
@@ -1532,6 +1613,36 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     .model-name { min-width: 180px; }
     .trust-logos { gap: 1.25rem; }
     .trust-logo-img { height: 22px; }
-    .detail-grid { grid-template-columns: 1fr; }
+    .trust-logo-text { font-size: 0.9375rem; }
+    .detail-grid { grid-template-columns: 1fr; gap: 1rem; }
+
+    /* Detail panel: shrink section headings and pricing values so they
+       no longer dominate the body text on phones. Section headings
+       (Pricing, Model Info, Features) sit one tier above pricing-card
+       labels (Input, Cache Read, ...) for clear hierarchy. */
+    .detail-panel { padding: 1rem; }
+    .detail-heading { font-size: 0.5625rem; letter-spacing: 0.06em; margin-bottom: 0.5rem; }
+    .pricing-cards { gap: 0.3125rem; }
+    .pricing-card { padding: 0.375rem 0.4375rem; gap: 0.125rem; }
+    .pricing-label { font-size: 0.375rem; letter-spacing: 0.04em; font-weight: 500; }
+    .pricing-value { font-size: 0.5625rem; font-weight: 600; }
+
+    /* Stack info-rows so "Max Input" label can't collide with long values */
+    .info-row { flex-direction: column; align-items: flex-start; gap: 0.125rem; padding: 0.375rem 0; }
+    .info-label { font-size: 0.75rem; }
+    .info-value { text-align: left; font-size: 0.75rem; word-break: break-word; }
+
+    /* Code blocks: smaller font and tighter padding for mobile readability.
+       Wrap lines (pre-wrap) so very long model names break instead of
+       forcing the block to be visually huge. */
+    .code-snippet { font-size: 0.4375rem; line-height: 1.4; padding: 0.5rem; }
+    .code-snippet code { white-space: pre-wrap; word-break: break-word; }
+    .code-header-row { padding: 0.5rem 0.75rem; flex-wrap: wrap; gap: 0.5rem; }
+    .code-tab { padding: 0.3125rem 0.625rem; font-size: 0.6875rem; }
+    .copy-code-btn { font-size: 0.6875rem; padding: 0.25rem 0.5rem; }
+
+    /* Lock row height so Bedrock / first entries don't render taller than others */
+    .model-row td { height: 48px; }
+    .provider-avatar { width: 24px; height: 24px; }
   }
 </style>
