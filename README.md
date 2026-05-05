@@ -9,5 +9,5 @@ npm run dev
 
 ## Notes
 
-- [App.svelte](https://github.com/fastrepl/contextlengthof/blob/main/src/App.svelte) is all you need to edit.
+- Start with [App.svelte](https://github.com/fastrepl/contextlengthof/blob/main/src/App.svelte) for most UI changes.
 - [PicoCSS](https://picocss.com/) is used for styling.
