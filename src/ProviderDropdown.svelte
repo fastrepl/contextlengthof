@@ -3,7 +3,7 @@
   import { getProviderInitial, getProviderLogo } from "./providers";
 
   export let providers: string[] = [];
-  export let selectedProvider: string = "";
+  export let selectedProviders: string[] = [];
 
   let isOpen = false;
   let searchQuery = "";
@@ -12,6 +12,15 @@
     provider.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  $: selectedProviderSet = new Set(selectedProviders);
+
+  $: triggerLabel =
+    selectedProviders.length === 0
+      ? "All Providers"
+      : selectedProviders.length === 1
+        ? selectedProviders[0]
+        : `${selectedProviders.length} providers`;
+
   function toggle() {
     isOpen = !isOpen;
     if (isOpen) {
@@ -19,9 +28,16 @@
     }
   }
 
-  function select(provider: string) {
-    selectedProvider = provider;
-    isOpen = false;
+  function toggleProvider(provider: string) {
+    if (selectedProviderSet.has(provider)) {
+      selectedProviders = selectedProviders.filter((selected) => selected !== provider);
+    } else {
+      selectedProviders = [...selectedProviders, provider];
+    }
+  }
+
+  function clearSelection() {
+    selectedProviders = [];
     searchQuery = "";
   }
 
@@ -44,17 +60,17 @@
     type="button"
   >
     <div class="dropdown-trigger-content">
-      {#if selectedProvider}
+      {#if selectedProviders.length === 1}
         <div class="selected-provider">
-          {#if getProviderLogo(selectedProvider)}
-            <img src={getProviderLogo(selectedProvider)} alt={selectedProvider} class="provider-logo" />
+          {#if getProviderLogo(selectedProviders[0])}
+            <img src={getProviderLogo(selectedProviders[0])} alt={selectedProviders[0]} class="provider-logo" />
           {:else}
-            <div class="provider-avatar">{getProviderInitial(selectedProvider)}</div>
+            <div class="provider-avatar">{getProviderInitial(selectedProviders[0])}</div>
           {/if}
-          <span class="provider-name">{selectedProvider}</span>
+          <span class="provider-name">{triggerLabel}</span>
         </div>
       {:else}
-        <span class="placeholder">All Providers</span>
+        <span class:placeholder={selectedProviders.length === 0}>{triggerLabel}</span>
       {/if}
     </div>
     <svg width="12" height="8" viewBox="0 0 12 8" fill="none" class="dropdown-arrow" class:open={isOpen}>
@@ -77,8 +93,8 @@
       <div class="dropdown-options">
         <button
           class="dropdown-option"
-          class:selected={!selectedProvider}
-          on:click={() => select("")}
+          class:selected={selectedProviders.length === 0}
+          on:click={clearSelection}
           type="button"
         >
           <span>All Providers</span>
@@ -86,10 +102,17 @@
         {#each filteredProviders as provider}
           <button
             class="dropdown-option"
-            class:selected={selectedProvider === provider}
-            on:click={() => select(provider)}
+            class:selected={selectedProviderSet.has(provider)}
+            on:click={() => toggleProvider(provider)}
             type="button"
           >
+            <span class="checkbox" class:checked={selectedProviderSet.has(provider)}>
+              {#if selectedProviderSet.has(provider)}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              {/if}
+            </span>
             {#if getProviderLogo(provider)}
               <img src={getProviderLogo(provider)} alt={provider} class="provider-logo" />
             {:else}
@@ -237,6 +260,23 @@
     color: var(--text-color);
     font-family: inherit;
     font-size: 0.9375rem;
+  }
+
+  .checkbox {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color-strong);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    flex-shrink: 0;
+  }
+
+  .checkbox.checked {
+    border-color: var(--litellm-primary);
+    background: var(--litellm-primary);
   }
 
   .dropdown-option:hover {

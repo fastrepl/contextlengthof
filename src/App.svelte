@@ -24,13 +24,29 @@
   const RESOURCE_PATH = `${RESOURCE_NAME}`;
   const RESOURCE_BACKUP_PATH = `litellm/${RESOURCE_BACKUP_NAME}`;
   let providers: string[] = [];
-  let selectedProvider: string = "";
+  let modes: string[] = [];
+  let selectedProviders: string[] = [];
+  let selectedModes: string[] = [];
+  let modeDropdownOpen = false;
   let maxInputTokens: number | null = null;
   let maxOutputTokens: number | null = null;
+  let maxInputCost: number | null = null;
+  let maxOutputCost: number | null = null;
+  let advancedFiltersOpen = false;
+  let capabilityFilters: Record<string, boolean> = {
+    supports_function_calling: false,
+    supports_vision: false,
+    supports_response_schema: false,
+    supports_tool_choice: false,
+    supports_parallel_function_calling: false,
+    supports_audio_input: false,
+    supports_prompt_caching: false,
+  };
 
-  // Sorting state
-  let sortColumn: string = "";
-  let sortDirection: "asc" | "desc" = "asc";
+  // Sorting state (multi-column)
+  type SortCriterion = { column: string; direction: "asc" | "desc" };
+  let sortCriteria: SortCriterion[] = [{ column: "name", direction: "asc" }];
+  let newSortColumn: string = "";
 
   // Copy toast
   let copiedModel = "";
@@ -46,6 +62,13 @@
     }
     if (e.key === "Escape" && document.activeElement === searchInput) {
       searchInput?.blur();
+    }
+  }
+
+  function handleWindowClick(e: MouseEvent) {
+    const target = e.target as HTMLElement;
+    if (!target.closest(".mode-dropdown")) {
+      modeDropdownOpen = false;
     }
   }
 
@@ -75,12 +98,14 @@
       .then((res) => res.text())
       .then((text) => {
         lines = text.split("\n");
-        const items: Item[] = Object.entries(JSON.parse(text)).map(
-          ([k, v]: any) => ({ name: k, ...v }),
-        );
+        const items: Item[] = Object.entries(JSON.parse(text))
+          .map(([k, v]: any) => ({ name: k, ...v }))
+          .filter((item) => item.name !== "sample_spec");
 
-        providers = [...new Set(items.map((i) => i.litellm_provider))];
+        providers = [...new Set(items.map((i) => i.litellm_provider).filter(Boolean))];
         providers.sort();
+        modes = [...new Set(items.map((i) => i.mode).filter(Boolean))];
+        modes.sort();
 
         index = new Fuse(items, {
           threshold: 0.3,
@@ -95,6 +120,7 @@
         });
 
         results = items.map((item, refIndex) => ({ item, refIndex }));
+        applySorting();
         loading = false;
       });
   });
@@ -159,7 +185,16 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
 
   $: {
     if (index) {
-      filterResults(query, selectedProvider, maxInputTokens, maxOutputTokens);
+      filterResults(
+        query,
+        selectedProviders,
+        selectedModes,
+        maxInputTokens,
+        maxOutputTokens,
+        maxInputCost,
+        maxOutputCost,
+        capabilityFilters,
+      );
     }
   }
 
@@ -190,18 +225,58 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   }
 
   function handleSort(column: string) {
-    if (sortColumn === column) {
-      sortDirection = sortDirection === "asc" ? "desc" : "asc";
+    const existing = sortCriteria.find((c) => c.column === column);
+    if (existing) {
+      sortCriteria = sortCriteria.map((c) =>
+        c.column === column
+          ? { ...c, direction: c.direction === "asc" ? "desc" : "asc" }
+          : c,
+      );
     } else {
-      sortColumn = column;
-      sortDirection = "asc";
+      sortCriteria = [{ column, direction: "asc" }];
     }
     applySorting();
   }
 
-  function getSortValue(item: any, column: string): number {
+  function addSortCriterion() {
+    if (!newSortColumn) return;
+    if (sortCriteria.some((c) => c.column === newSortColumn)) return;
+    sortCriteria = [...sortCriteria, { column: newSortColumn, direction: "asc" }];
+    newSortColumn = "";
+    applySorting();
+  }
+
+  function removeSortCriterion(column: string) {
+    sortCriteria = sortCriteria.filter((c) => c.column !== column);
+    applySorting();
+  }
+
+  function toggleSortDirection(column: string) {
+    sortCriteria = sortCriteria.map((c) =>
+      c.column === column
+        ? { ...c, direction: c.direction === "asc" ? "desc" : "asc" }
+        : c,
+    );
+    applySorting();
+  }
+
+  function getSortLabel(column: string): string {
+    const labels: Record<string, string> = {
+      name: "Model name", provider: "Provider", mode: "Mode",
+      context: "Input context", output_context: "Output context",
+      input: "Input cost", output: "Output cost",
+      cache_read: "Cache read", cache_write: "Cache write",
+    };
+    return labels[column] || column;
+  }
+
+  function getSortValue(item: any, column: string): number | string {
     switch (column) {
+      case "name": return getDisplayModelName(item.name, item.litellm_provider).toLowerCase();
+      case "provider": return (item.litellm_provider || "").toLowerCase();
+      case "mode": return (item.mode || "").toLowerCase();
       case "context": return item.max_input_tokens || 0;
+      case "output_context": return item.max_output_tokens || 0;
       case "input": return item.input_cost_per_token || 0;
       case "output": return item.output_cost_per_token || 0;
       case "cache_read": return item.cache_read_input_token_cost || 0;
@@ -211,12 +286,55 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   }
 
   function applySorting() {
-    if (!sortColumn) return;
+    if (sortCriteria.length === 0) return;
     results = [...results].sort((a, b) => {
-      const aVal = getSortValue(a.item, sortColumn);
-      const bVal = getSortValue(b.item, sortColumn);
-      return sortDirection === "asc" ? aVal - bVal : bVal - aVal;
+      for (const criterion of sortCriteria) {
+        const aVal = getSortValue(a.item, criterion.column);
+        const bVal = getSortValue(b.item, criterion.column);
+        let comparison = 0;
+        if (typeof aVal === "string" || typeof bVal === "string") {
+          comparison = String(aVal).localeCompare(String(bVal));
+        } else {
+          comparison = (aVal as number) - (bVal as number);
+        }
+        if (comparison !== 0) {
+          return criterion.direction === "asc" ? comparison : -comparison;
+        }
+      }
+      return 0;
     });
+  }
+
+  function resetFilters() {
+    query = "";
+    selectedProviders = [];
+    selectedModes = [];
+    maxInputTokens = null;
+    maxOutputTokens = null;
+    maxInputCost = null;
+    maxOutputCost = null;
+    sortCriteria = [{ column: "name", direction: "asc" }];
+    newSortColumn = "";
+    capabilityFilters = Object.fromEntries(
+      Object.keys(capabilityFilters).map((key) => [key, false]),
+    );
+  }
+
+  function updateCapabilityFilter(key: string, checked: boolean) {
+    capabilityFilters = { ...capabilityFilters, [key]: checked };
+  }
+
+  function hasActiveFilters() {
+    return Boolean(
+      query ||
+        selectedProviders.length ||
+        selectedModes.length ||
+        maxInputTokens ||
+        maxOutputTokens ||
+        maxInputCost ||
+        maxOutputCost ||
+        Object.values(capabilityFilters).some(Boolean),
+    );
   }
 
   function formatCost(costPerToken: number | undefined): string {
@@ -252,34 +370,59 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
       "completion": "Completion",
       "embedding": "Embedding",
       "image_generation": "Image Gen",
+      "image_edit": "Image Edit",
       "audio_transcription": "Transcription",
       "audio_speech": "TTS",
       "moderation": "Moderation",
       "rerank": "Rerank",
+      "responses": "Responses",
+      "video_generation": "Video Gen",
+      "search": "Search",
+      "ocr": "OCR",
+      "realtime": "Realtime",
+      "vector_store": "Vector Store",
     };
     return labels[mode] || mode;
   }
 
   function filterResults(
     query: string,
-    selectedProvider: string,
+    selectedProviders: string[],
+    selectedModes: string[],
     maxInputTokens: number | null,
     maxOutputTokens: number | null,
+    maxInputCost: number | null,
+    maxOutputCost: number | null,
+    capabilityFilters: Record<string, boolean>,
   ) {
     if (index) {
       let filteredResults: Item[];
 
       const allItems = index["_docs"] as Item[];
+      const selectedProviderSet = new Set(selectedProviders);
+      const selectedModeSet = new Set(selectedModes);
+      const requiredCapabilities = Object.entries(capabilityFilters)
+        .filter(([, enabled]) => enabled)
+        .map(([key]) => key);
 
       filteredResults = allItems.filter(
         (item) =>
-          (!selectedProvider || item.litellm_provider === selectedProvider) &&
+          (selectedProviderSet.size === 0 ||
+            selectedProviderSet.has(item.litellm_provider)) &&
+          (selectedModeSet.size === 0 || selectedModeSet.has(item.mode)) &&
           (maxInputTokens === null ||
             (item.max_input_tokens &&
               item.max_input_tokens >= maxInputTokens)) &&
           (maxOutputTokens === null ||
             (item.max_output_tokens &&
-              item.max_output_tokens >= maxOutputTokens)),
+              item.max_output_tokens >= maxOutputTokens)) &&
+          (maxInputCost === null ||
+            (item.input_cost_per_token !== undefined &&
+              item.input_cost_per_token * 1000000 <= maxInputCost)) &&
+          (maxOutputCost === null ||
+            (item.output_cost_per_token !== undefined &&
+              item.output_cost_per_token * 1000000 <= maxOutputCost)) &&
+          requiredCapabilities.every((capability) => Boolean(item[capability])),
       );
 
       if (query) {
@@ -302,14 +445,14 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
       results = filteredResults.map((item, refIndex) => ({ item, refIndex }));
       loading = false;
 
-      if (sortColumn) applySorting();
+      if (sortCriteria.length > 0) applySorting();
 
-      trackSearchDebounced(query, selectedProvider, results.length);
+      trackSearchDebounced(query, selectedProviders.join(","), results.length);
     }
   }
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window on:keydown={handleKeydown} on:click={handleWindowClick} />
 
 <main class="container">
   <!-- Hero Section -->
@@ -407,39 +550,210 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
         {/if}
       </div>
       
-      <ProviderDropdown bind:selectedProvider {providers} />
+      <ProviderDropdown bind:selectedProviders {providers} />
+
+      <div class="mode-dropdown">
+        <button
+          type="button"
+          class="mode-dropdown-trigger"
+          on:click={() => { modeDropdownOpen = !modeDropdownOpen; }}
+        >
+          {#if selectedModes.length === 0}
+            All modes
+          {:else if selectedModes.length === 1}
+            {getModeLabel(selectedModes[0])}
+          {:else}
+            {selectedModes.length} modes
+          {/if}
+          <span class="mode-dropdown-caret">⌄</span>
+        </button>
+        {#if modeDropdownOpen}
+          <div class="mode-dropdown-menu">
+            {#if selectedModes.length > 0}
+              <button
+                type="button"
+                class="mode-dropdown-clear"
+                on:click={() => { selectedModes = []; }}
+              >Clear all</button>
+            {/if}
+            {#each modes as mode}
+              <label class="mode-dropdown-option">
+                <input
+                  type="checkbox"
+                  checked={selectedModes.includes(mode)}
+                  on:change={() => {
+                    if (selectedModes.includes(mode)) {
+                      selectedModes = selectedModes.filter((m) => m !== mode);
+                    } else {
+                      selectedModes = [...selectedModes, mode];
+                    }
+                  }}
+                />
+                {getModeLabel(mode)}
+              </label>
+            {/each}
+          </div>
+        {/if}
+      </div>
     </div>
 
-    <div class="filters-row">
-      <div class="filter-group">
-        <label for="maxInputTokens">Min Input Tokens</label>
-        <input
-          id="maxInputTokens"
-          bind:value={maxInputTokens}
-          type="number"
-          min="0"
-          placeholder="e.g., 100000"
-          class="filter-input"
-        />
+    <button
+      class="advanced-toggle-button"
+      type="button"
+      on:click={() => { advancedFiltersOpen = !advancedFiltersOpen; }}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
+      Filters & Sort
+      {#if hasActiveFilters()}
+        <span class="active-filter-dot"></span>
+      {/if}
+      <span class="advanced-toggle-icon" class:open={advancedFiltersOpen}>⌄</span>
+    </button>
+
+    {#if advancedFiltersOpen}
+      <div class="advanced-filters">
+        <div class="filters-grid">
+          <div class="filter-group">
+            <label for="maxInputTokens">Min Input Tokens</label>
+            <input
+              id="maxInputTokens"
+              bind:value={maxInputTokens}
+              type="number"
+              min="0"
+              placeholder="e.g., 100000"
+              class="filter-input"
+            />
+          </div>
+          <div class="filter-group">
+            <label for="maxOutputTokens">Min Output Tokens</label>
+            <input
+              id="maxOutputTokens"
+              bind:value={maxOutputTokens}
+              type="number"
+              min="0"
+              placeholder="e.g., 4096"
+              class="filter-input"
+            />
+          </div>
+          <div class="filter-group">
+            <label for="maxInputCost">Max Input $/M</label>
+            <input
+              id="maxInputCost"
+              bind:value={maxInputCost}
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="e.g., 5"
+              class="filter-input"
+            />
+          </div>
+          <div class="filter-group">
+            <label for="maxOutputCost">Max Output $/M</label>
+            <input
+              id="maxOutputCost"
+              bind:value={maxOutputCost}
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="e.g., 15"
+              class="filter-input"
+            />
+          </div>
+          <div class="filter-group sort-multi-group">
+            <label>Sort By (multi-column)</label>
+            <div class="sort-criteria-list">
+              {#each sortCriteria as criterion, i}
+                <div class="sort-criterion-chip">
+                  <span class="sort-criterion-priority">{i + 1}.</span>
+                  <span class="sort-criterion-label">{getSortLabel(criterion.column)}</span>
+                  <button
+                    type="button"
+                    class="sort-criterion-dir"
+                    on:click={() => toggleSortDirection(criterion.column)}
+                    aria-label="Toggle direction"
+                  >
+                    {criterion.direction === "asc" ? "↑" : "↓"}
+                  </button>
+                  <button
+                    type="button"
+                    class="sort-criterion-remove"
+                    on:click={() => removeSortCriterion(criterion.column)}
+                    aria-label="Remove sort"
+                  >×</button>
+                </div>
+              {/each}
+            </div>
+            <div class="sort-add-row">
+              <select bind:value={newSortColumn} class="filter-input sort-add-select">
+                <option value="">Add column...</option>
+                {#each [
+                  { value: "name", label: "Model name" },
+                  { value: "provider", label: "Provider" },
+                  { value: "mode", label: "Mode" },
+                  { value: "context", label: "Input context" },
+                  { value: "output_context", label: "Output context" },
+                  { value: "input", label: "Input cost" },
+                  { value: "output", label: "Output cost" },
+                  { value: "cache_read", label: "Cache read" },
+                  { value: "cache_write", label: "Cache write" },
+                ].filter((opt) => !sortCriteria.some((c) => c.column === opt.value)) as opt}
+                  <option value={opt.value}>{opt.label}</option>
+                {/each}
+              </select>
+              <button
+                type="button"
+                class="sort-add-btn"
+                on:click={addSortCriterion}
+                disabled={!newSortColumn}
+              >+</button>
+            </div>
+          </div>
+        </div>
+
+        <fieldset class="capability-filter-group">
+          <legend>Required capabilities</legend>
+          {#each [
+            { key: "supports_function_calling", label: "Functions" },
+            { key: "supports_vision", label: "Vision" },
+            { key: "supports_response_schema", label: "JSON" },
+            { key: "supports_tool_choice", label: "Tool choice" },
+            { key: "supports_parallel_function_calling", label: "Parallel" },
+            { key: "supports_audio_input", label: "Audio" },
+            { key: "supports_prompt_caching", label: "Caching" },
+          ] as capability}
+            <label class="capability-chip" class:active={capabilityFilters[capability.key]}>
+              <input
+                type="checkbox"
+                checked={capabilityFilters[capability.key]}
+                on:change={(event) => updateCapabilityFilter(capability.key, event.currentTarget.checked)}
+              />
+              {capability.label}
+            </label>
+          {/each}
+        </fieldset>
       </div>
-      <div class="filter-group">
-        <label for="maxOutputTokens">Min Output Tokens</label>
-        <input
-          id="maxOutputTokens"
-          bind:value={maxOutputTokens}
-          type="number"
-          min="0"
-          placeholder="e.g., 4096"
-          class="filter-input"
-        />
+    {/if}
+
+    {#if selectedProviders.length > 0}
+      <div class="selected-provider-chips">
+        {#each selectedProviders as provider}
+          <button
+            type="button"
+            class="selected-provider-chip"
+            on:click={() => { selectedProviders = selectedProviders.filter((selected) => selected !== provider); }}
+          >
+            {provider}
+            <span aria-hidden="true">×</span>
+          </button>
+        {/each}
       </div>
-    </div>
+    {/if}
 
     {#if !loading}
       <div class="results-meta">
         <span class="results-count">{results.length.toLocaleString()} models</span>
-        {#if query || selectedProvider || maxInputTokens || maxOutputTokens}
-          <button class="clear-filters" on:click={() => { query = ""; selectedProvider = ""; maxInputTokens = null; maxOutputTokens = null; }}>
+        {#if hasActiveFilters()}
+          <button class="clear-filters" on:click={resetFilters}>
             Clear all filters
           </button>
         {/if}
@@ -469,29 +783,33 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     {/if}
 
     <div class="table-container">
+      <div class="table-scroll-wrapper">
       <table>
         <thead>
           <tr>
-            <th class="th-model">Model</th>
+            <th class="th-model th-sortable" on:click={() => handleSort("name")}>
+              Model
+              <span class="sort-icon" class:active={sortCriteria.some(c => c.column === "name")} class:desc={sortCriteria.some(c => c.column === "name" && c.direction === "desc")}>↑</span>
+            </th>
             <th class="th-sortable" on:click={() => handleSort("context")}>
               Context
-              <span class="sort-icon" class:active={sortColumn === "context"} class:desc={sortColumn === "context" && sortDirection === "desc"}>↑</span>
+              <span class="sort-icon" class:active={sortCriteria.some(c => c.column === "context")} class:desc={sortCriteria.some(c => c.column === "context" && c.direction === "desc")}>↑</span>
             </th>
             <th class="th-sortable" on:click={() => handleSort("input")}>
               Input $/M
-              <span class="sort-icon" class:active={sortColumn === "input"} class:desc={sortColumn === "input" && sortDirection === "desc"}>↑</span>
+              <span class="sort-icon" class:active={sortCriteria.some(c => c.column === "input")} class:desc={sortCriteria.some(c => c.column === "input" && c.direction === "desc")}>↑</span>
             </th>
             <th class="th-sortable" on:click={() => handleSort("output")}>
               Output $/M
-              <span class="sort-icon" class:active={sortColumn === "output"} class:desc={sortColumn === "output" && sortDirection === "desc"}>↑</span>
+              <span class="sort-icon" class:active={sortCriteria.some(c => c.column === "output")} class:desc={sortCriteria.some(c => c.column === "output" && c.direction === "desc")}>↑</span>
             </th>
             <th class="th-sortable th-hide-mobile" on:click={() => handleSort("cache_read")}>
               Cache Read
-              <span class="sort-icon" class:active={sortColumn === "cache_read"} class:desc={sortColumn === "cache_read" && sortDirection === "desc"}>↑</span>
+              <span class="sort-icon" class:active={sortCriteria.some(c => c.column === "cache_read")} class:desc={sortCriteria.some(c => c.column === "cache_read" && c.direction === "desc")}>↑</span>
             </th>
             <th class="th-sortable th-hide-mobile" on:click={() => handleSort("cache_write")}>
               Cache Write
-              <span class="sort-icon" class:active={sortColumn === "cache_write"} class:desc={sortColumn === "cache_write" && sortDirection === "desc"}>↑</span>
+              <span class="sort-icon" class:active={sortCriteria.some(c => c.column === "cache_write")} class:desc={sortCriteria.some(c => c.column === "cache_write" && c.direction === "desc")}>↑</span>
             </th>
           </tr>
         </thead>
@@ -688,6 +1006,7 @@ curl http://0.0.0.0:4000/v1/chat/completions \
           {/each}
         </tbody>
       </table>
+      </div>
     </div>
   {/if}
 </main>
@@ -891,6 +1210,90 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     gap: 0.75rem;
     margin-bottom: 0.75rem;
     align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .mode-dropdown {
+    position: relative;
+  }
+
+  .mode-dropdown-trigger {
+    height: 44px;
+    padding: 0 0.875rem;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+  }
+
+  .mode-dropdown-trigger:hover {
+    border-color: var(--border-color-strong);
+  }
+
+  .mode-dropdown-caret {
+    font-size: 0.75rem;
+    color: var(--muted-color);
+  }
+
+  .mode-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    min-width: 180px;
+    max-height: 320px;
+    overflow-y: auto;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    z-index: 100;
+    padding: 0.375rem;
+  }
+
+  .mode-dropdown-clear {
+    width: 100%;
+    padding: 0.375rem 0.75rem;
+    border: none;
+    background: none;
+    color: var(--muted-color);
+    font-size: 0.75rem;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 6px;
+  }
+
+  .mode-dropdown-clear:hover {
+    background: var(--bg-secondary);
+    color: var(--text-color);
+  }
+
+  .mode-dropdown-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8125rem;
+    transition: background 0.1s ease;
+  }
+
+  .mode-dropdown-option:hover {
+    background: var(--bg-secondary);
+  }
+
+  .mode-dropdown-option input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--litellm-primary);
   }
 
   .search-input-wrapper {
@@ -968,9 +1371,9 @@ curl http://0.0.0.0:4000/v1/chat/completions \
   }
 
   /* Filters */
-  .filters-row {
+  .filters-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.75rem;
   }
 
@@ -1009,6 +1412,253 @@ curl http://0.0.0.0:4000/v1/chat/completions \
   }
 
   .filter-input::placeholder { color: var(--muted-color); }
+
+  .sort-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.5rem;
+  }
+
+  .sort-multi-group {
+    grid-column: 1 / -1;
+  }
+
+  .sort-criteria-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .sort-criterion-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-color);
+    font-size: 0.8125rem;
+  }
+
+  .sort-criterion-priority {
+    color: var(--muted-color);
+    font-weight: 600;
+    font-size: 0.75rem;
+  }
+
+  .sort-criterion-label {
+    font-weight: 500;
+    color: var(--text-color);
+  }
+
+  .sort-criterion-dir,
+  .sort-criterion-remove {
+    border: none;
+    background: none;
+    cursor: pointer;
+    padding: 0 0.25rem;
+    font-size: 0.875rem;
+    color: var(--muted-color);
+    border-radius: 4px;
+    line-height: 1;
+  }
+
+  .sort-criterion-dir:hover {
+    color: var(--litellm-primary);
+    background: var(--bg-secondary);
+  }
+
+  .sort-criterion-remove:hover {
+    color: #e53e3e;
+    background: var(--bg-secondary);
+  }
+
+  .sort-add-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .sort-add-select {
+    flex: 1;
+    max-width: 200px;
+  }
+
+  .sort-add-btn {
+    height: 36px;
+    width: 36px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-size: 1.125rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+  }
+
+  .sort-add-btn:hover:not(:disabled) {
+    background: var(--litellm-primary);
+    color: white;
+    border-color: var(--litellm-primary);
+  }
+
+  .sort-add-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .sort-direction {
+    height: 40px;
+    width: 40px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sort-direction:hover {
+    border-color: var(--border-color-strong);
+    background: var(--bg-secondary);
+  }
+
+  .advanced-toggle-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+    height: 36px;
+    padding: 0 0.875rem;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-color);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.8125rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    margin-top: 0.75rem;
+  }
+
+  .advanced-toggle-button:hover {
+    border-color: var(--border-color-strong);
+    background: var(--bg-secondary);
+    color: var(--text-color);
+  }
+
+  .advanced-toggle-button svg {
+    flex-shrink: 0;
+    color: var(--muted-color);
+  }
+
+  .active-filter-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--litellm-primary);
+  }
+
+  .advanced-toggle-icon {
+    display: inline-block;
+    transition: transform 0.15s ease;
+  }
+
+  .advanced-toggle-icon.open {
+    transform: rotate(180deg);
+  }
+
+  .advanced-filters {
+    margin-top: 0.75rem;
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--bg-secondary);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .capability-filter-group {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-content: end;
+  }
+
+  .capability-filter-group legend {
+    width: 100%;
+    margin-bottom: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted-color);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .capability-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.45rem 0.7rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    transition: all 0.15s ease;
+  }
+
+  .capability-chip input {
+    display: none;
+  }
+
+  .capability-chip.active {
+    border-color: var(--litellm-primary);
+    color: var(--litellm-primary);
+    background: rgba(99, 102, 241, 0.08);
+  }
+
+  .selected-provider-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+
+  .selected-provider-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.625rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .selected-provider-chip:hover {
+    border-color: var(--litellm-primary);
+    color: var(--litellm-primary);
+  }
 
   /* Results meta */
   .results-meta {
@@ -1067,16 +1717,20 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     margin: 1rem auto 4rem;
     max-width: 1400px;
     padding: 0 2rem;
-    overflow-x: auto;
+  }
+
+  .table-scroll-wrapper {
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    overflow: auto;
+    max-height: calc(100vh - 120px);
+    background: var(--card-bg);
   }
 
   table {
     width: 100%;
     border-collapse: collapse;
     background: var(--card-bg);
-    border-radius: 12px;
-    border: 1px solid var(--border-color);
-    overflow: hidden;
   }
 
   thead {
@@ -1096,7 +1750,7 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     white-space: nowrap;
     user-select: none;
     position: sticky;
-    top: 63px;
+    top: 0;
     z-index: 10;
   }
 
@@ -1516,6 +2170,9 @@ curl http://0.0.0.0:4000/v1/chat/completions \
 
   @media (max-width: 900px) {
     .th-hide-mobile, .td-hide-mobile { display: none; }
+    .filters-grid {
+      grid-template-columns: 1fr 1fr;
+    }
   }
 
   @media (max-width: 768px) {
@@ -1526,7 +2183,7 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     .btn { width: 100%; }
     .search-section { padding: 0 1rem; }
     .search-bar-container { flex-direction: column; }
-    .filters-row { grid-template-columns: 1fr; }
+    .filters-grid { grid-template-columns: 1fr; }
     .table-container { padding: 0 1rem; }
     th, td { padding: 0.5rem 0.625rem; font-size: 0.8125rem; }
     .model-name { min-width: 180px; }
