@@ -18,7 +18,9 @@
     imageModeOutputSortValue,
     getImagePricingExtraRows,
     getLiteLLmSdkSnippet,
+    getLiteLLmSdkSnippetHtml,
     getLiteLLmProxyCurlSnippet,
+    getLiteLLmProxyCurlSnippetHtml,
     displayChatInputCost,
     displayChatOutputCost,
     displayChatCacheRead,
@@ -821,9 +823,9 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
                         {/if}
                       </div>
                       {#if !codeTabStates[name] || codeTabStates[name] === "sdk"}
-                        <pre class="code-snippet"><code>{getLiteLLmSdkSnippet(mode, getDisplayModelName(name, litellm_provider))}</code></pre>
+                        <pre class="code-snippet"><code>{@html getLiteLLmSdkSnippetHtml(mode, getDisplayModelName(name, litellm_provider))}</code></pre>
                       {:else}
-                        <pre class="code-snippet"><code>{getLiteLLmProxyCurlSnippet(mode, getDisplayModelName(name, litellm_provider))}</code></pre>
+                        <pre class="code-snippet"><code>{@html getLiteLLmProxyCurlSnippetHtml(mode, getDisplayModelName(name, litellm_provider))}</code></pre>
                       {/if}
                     </div>
 
@@ -1660,13 +1662,26 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     color: var(--code-text);
   }
 
-  .code-snippet code { display: block; }
-  .code-kw { color: #8b5cf6; }
-  .code-str { color: #10b981; }
+  .code-snippet code { display: block; white-space: pre; }
+
+  /* {@html} snippets are not scoped — use :global so .code-kw / .code-str apply */
+  .code-snippet :global(.code-kw) {
+    color: #8b5cf6;
+  }
+  .code-snippet :global(.code-str) {
+    color: #10b981;
+  }
+  .code-snippet :global(.code-comment) {
+    color: var(--muted-color);
+  }
 
   @media (prefers-color-scheme: dark) {
-    .code-kw { color: #a78bfa; }
-    .code-str { color: #34d399; }
+    .code-snippet :global(.code-kw) {
+      color: #a78bfa;
+    }
+    .code-snippet :global(.code-str) {
+      color: #34d399;
+    }
   }
 
   .detail-actions {

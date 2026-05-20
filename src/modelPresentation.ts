@@ -220,6 +220,77 @@ export function imageModeOutputSortValue(item: Record<string, unknown>): number 
   return 0;
 }
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function pyStr(value: string): string {
+  return `<span class="code-str">"${escapeHtml(value)}"</span>`;
+}
+
+function pyKw(text: string): string {
+  return `<span class="code-kw">${text}</span>`;
+}
+
+/** Syntax-highlighted HTML for the Python SDK tab (copy still uses plain `getLiteLLmSdkSnippet`). */
+export function getLiteLLmSdkSnippetHtml(mode: string | undefined, model: string): string {
+  const m = (mode || "").toLowerCase();
+  const modelStr = pyStr(model);
+
+  if (m === "image_generation") {
+    return `${pyKw("from")} litellm ${pyKw("import")} image_generation
+
+response = image_generation(
+    model=${modelStr},
+    prompt=${pyStr("A cute baby sea otter")},
+)`;
+  }
+  if (m === "image_edit") {
+    return `${pyKw("from")} litellm ${pyKw("import")} image_edit
+
+response = image_edit(
+    model=${modelStr},
+    image=open(${pyStr("image.png")}, ${pyStr("rb")}),
+    prompt=${pyStr("Describe your edit")},
+)`;
+  }
+  if (m === "embedding") {
+    return `${pyKw("from")} litellm ${pyKw("import")} embedding
+
+response = embedding(
+    model=${modelStr},
+    input=[${pyStr("hello world")}],
+)`;
+  }
+  if (m === "audio_transcription") {
+    return `${pyKw("from")} litellm ${pyKw("import")} transcription
+
+response = transcription(
+    model=${modelStr},
+    file=open(${pyStr("audio.mp3")}, ${pyStr("rb")}),
+)`;
+  }
+  if (m === "audio_speech") {
+    return `${pyKw("from")} litellm ${pyKw("import")} speech
+
+response = speech(
+    model=${modelStr},
+    input=${pyStr("Hello from LiteLLM")},
+    voice=${pyStr("alloy")},
+)`;
+  }
+  return `${pyKw("from")} litellm ${pyKw("import")} completion
+
+response = completion(
+    model=${modelStr},
+    messages=[{${pyStr("role")}: ${pyStr("user")}, ${pyStr("content")}: ${pyStr("Hello!")}}],
+)`;
+}
+
 export function getLiteLLmSdkSnippet(mode: string | undefined, model: string): string {
   const m = (mode || "").toLowerCase();
   if (m === "image_generation") {
@@ -272,6 +343,69 @@ response = completion(
 )`;
 }
 
+function curlStr(value: string): string {
+  return `<span class="code-str">${escapeHtml(value)}</span>`;
+}
+
+/** Syntax-highlighted HTML for the proxy curl tab. */
+export function getLiteLLmProxyCurlSnippetHtml(mode: string | undefined, model: string): string {
+  const m = (mode || "").toLowerCase();
+  const modelStr = escapeHtml(model);
+
+  if (m === "image_generation") {
+    return `curl http://0.0.0.0:4000/v1/images/generations \\
+  -H ${curlStr("Content-Type: application/json")} \\
+  -H ${curlStr("Authorization: Bearer sk-1234")} \\
+  -d ${curlStr(`{
+    "model": "${modelStr}",
+    "prompt": "A cute baby sea otter",
+    "n": 1,
+    "size": "1024x1024"
+  }`)}`;
+  }
+  if (m === "image_edit") {
+    return `curl http://0.0.0.0:4000/v1/images/edits \\
+  -H ${curlStr("Authorization: Bearer sk-1234")} \\
+  -F model=${curlStr(model)} \\
+  -F image=@image.png \\
+  -F prompt=${curlStr("Describe your edit")}`;
+  }
+  if (m === "embedding") {
+    return `curl http://0.0.0.0:4000/v1/embeddings \\
+  -H ${curlStr("Content-Type: application/json")} \\
+  -H ${curlStr("Authorization: Bearer sk-1234")} \\
+  -d ${curlStr(`{
+    "model": "${modelStr}",
+    "input": "hello world"
+  }`)}`;
+  }
+  if (m === "audio_transcription") {
+    return `curl http://0.0.0.0:4000/v1/audio/transcriptions \\
+  -H ${curlStr("Authorization: Bearer sk-1234")} \\
+  -F model=${curlStr(model)} \\
+  -F file=@audio.mp3`;
+  }
+  if (m === "audio_speech") {
+    return `curl http://0.0.0.0:4000/v1/audio/speech \\
+  -H ${curlStr("Content-Type: application/json")} \\
+  -H ${curlStr("Authorization: Bearer sk-1234")} \\
+  -d ${curlStr(`{
+    "model": "${modelStr}",
+    "input": "Hello from LiteLLM",
+    "voice": "alloy"
+  }`)}`;
+  }
+  return `<span class="code-comment"># Start proxy: litellm --model ${modelStr}</span>
+
+curl http://0.0.0.0:4000/v1/chat/completions \\
+  -H ${curlStr("Content-Type: application/json")} \\
+  -H ${curlStr("Authorization: Bearer sk-1234")} \\
+  -d ${curlStr(`{
+    "model": "${modelStr}",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }`)}`;
+}
+
 export function getLiteLLmProxyCurlSnippet(mode: string | undefined, model: string): string {
   const m = (mode || "").toLowerCase();
   if (m === "image_generation") {
@@ -299,6 +433,22 @@ export function getLiteLLmProxyCurlSnippet(mode: string | undefined, model: stri
   -d '{
     "model": "${model}",
     "input": "hello world"
+  }'`;
+  }
+  if (m === "audio_transcription") {
+    return `curl http://0.0.0.0:4000/v1/audio/transcriptions \\
+  -H "Authorization: Bearer sk-1234" \\
+  -F model="${model}" \\
+  -F file=@audio.mp3`;
+  }
+  if (m === "audio_speech") {
+    return `curl http://0.0.0.0:4000/v1/audio/speech \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer sk-1234" \\
+  -d '{
+    "model": "${model}",
+    "input": "Hello from LiteLLM",
+    "voice": "alloy"
   }'`;
   }
   return `curl http://0.0.0.0:4000/v1/chat/completions \\
