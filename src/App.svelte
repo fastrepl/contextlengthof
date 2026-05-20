@@ -6,6 +6,28 @@
   import { getProviderInitial, getProviderLogo } from "./providers";
   import ProviderDropdown from "./ProviderDropdown.svelte";
   import { trackSearch } from "./analytics";
+  import {
+    fetchAllCatalogModels,
+  } from "./catalogApi";
+  import {
+    isImagePricingMode,
+    isAudioPricingMode,
+    tableImageInputCost,
+    tableImageOutputCost,
+    imageModeInputSortValue,
+    imageModeOutputSortValue,
+    getImagePricingExtraRows,
+    getLiteLLmSdkSnippet,
+    getLiteLLmProxyCurlSnippet,
+    displayChatInputCost,
+    displayChatOutputCost,
+    displayChatCacheRead,
+    displayChatCacheWrite,
+    chatSortInput,
+    chatSortOutput,
+    chatSortCacheRead,
+    chatSortCacheWrite,
+  } from "./modelPresentation";
 
   type Item = {
     name: string;
@@ -23,6 +45,16 @@
   const RESOURCE_BACKUP_NAME = "model_prices_and_context_window_backup.json";
   const RESOURCE_PATH = `${RESOURCE_NAME}`;
   const RESOURCE_BACKUP_PATH = `litellm/${RESOURCE_BACKUP_NAME}`;
+
+  /** Schema reference row in `model_prices_and_context_window.json` — same id as the JSON key. */
+  const SAMPLE_SPEC_ROW_NAME = "sample_spec";
+
+  /** When true, load from litellm-model-catalog-api (see .env.example). */
+  const useLocalCatalogApi =
+    import.meta.env.VITE_USE_LOCAL_CATALOG_API === "true" ||
+    import.meta.env.VITE_USE_LOCAL_CATALOG_API === "1";
+  /** Optional absolute API origin, e.g. http://127.0.0.1:8000. Empty = same-origin /model_catalog (Vite proxy). */
+  const catalogApiBase = (import.meta.env.VITE_CATALOG_API_BASE as string | undefined)?.replace(/\/$/, "") ?? "";
   let providers: string[] = [];
   let selectedProvider: string = "";
   let maxInputTokens: number | null = null;
@@ -69,33 +101,71 @@
         sha = text;
       });
 
+    function prependSampleSpecRow(
+      rows: Item[],
+      spec: Record<string, unknown> | null | undefined,
+    ): Item[] {
+      if (!spec || typeof spec !== "object") return rows;
+      const refRow: Item = { name: SAMPLE_SPEC_ROW_NAME, ...spec } as Item;
+      return [refRow, ...rows];
+    }
+
+    const finishLoad = (items: Item[]) => {
+      providers = [
+        ...new Set(
+          items
+            .filter((i) => i.name !== SAMPLE_SPEC_ROW_NAME)
+            .map((i) => i.litellm_provider)
+            .filter(Boolean),
+        ),
+      ];
+      providers.sort();
+
+      index = new Fuse(items, {
+        threshold: 0.3,
+        keys: [
+          {
+            name: "name",
+            weight: 1.5,
+          },
+          "mode",
+          "litellm_provider",
+        ],
+      });
+
+      results = items.map((item, refIndex) => ({ item, refIndex }));
+      loading = false;
+    };
+
+    if (useLocalCatalogApi) {
+      fetchAllCatalogModels(catalogApiBase)
+        .then(({ models, sample_spec }) => {
+          finishLoad(prependSampleSpecRow(models as Item[], sample_spec));
+        })
+        .catch((err) => {
+          console.error(err);
+          loading = false;
+        });
+      return;
+    }
+
     fetch(
       `https://raw.githubusercontent.com/${REPO_FULL_NAME}/main/${RESOURCE_PATH}`,
     )
       .then((res) => res.text())
       .then((text) => {
         lines = text.split("\n");
-        const items: Item[] = Object.entries(JSON.parse(text)).map(
-          ([k, v]: any) => ({ name: k, ...v }),
-        );
-
-        providers = [...new Set(items.map((i) => i.litellm_provider))];
-        providers.sort();
-
-        index = new Fuse(items, {
-          threshold: 0.3,
-          keys: [
-            {
-              name: "name",
-              weight: 1.5,
-            },
-            "mode",
-            "litellm_provider",
-          ],
-        });
-
-        results = items.map((item, refIndex) => ({ item, refIndex }));
-        loading = false;
+        const parsed = JSON.parse(text) as Record<string, unknown>;
+        const spec =
+          parsed.sample_spec != null &&
+          typeof parsed.sample_spec === "object" &&
+          !Array.isArray(parsed.sample_spec)
+            ? (parsed.sample_spec as Record<string, unknown>)
+            : null;
+        const items: Item[] = Object.entries(parsed)
+          .filter(([k]) => k !== "sample_spec")
+          .map(([k, v]: any) => ({ name: k, ...v }));
+        finishLoad(prependSampleSpecRow(items, spec));
       });
   });
 
@@ -200,13 +270,37 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
   }
 
   function getSortValue(item: any, column: string): number {
+    if (column === "context" && isSampleSpecCatalogRow(item)) {
+      return typeof item.max_input_tokens === "number" ? item.max_input_tokens : 0;
+    }
+    if (isImagePricingMode(item.mode)) {
+      switch (column) {
+        case "context":
+          return item.max_input_tokens || 0;
+        case "input":
+          return imageModeInputSortValue(item);
+        case "output":
+          return imageModeOutputSortValue(item);
+        case "cache_read":
+        case "cache_write":
+          return 0;
+        default:
+          return 0;
+      }
+    }
     switch (column) {
-      case "context": return item.max_input_tokens || 0;
-      case "input": return item.input_cost_per_token || 0;
-      case "output": return item.output_cost_per_token || 0;
-      case "cache_read": return item.cache_read_input_token_cost || 0;
-      case "cache_write": return item.cache_creation_input_token_cost || 0;
-      default: return 0;
+      case "context":
+        return item.max_input_tokens || 0;
+      case "input":
+        return chatSortInput(item);
+      case "output":
+        return chatSortOutput(item);
+      case "cache_read":
+        return chatSortCacheRead(item);
+      case "cache_write":
+        return chatSortCacheWrite(item);
+      default:
+        return 0;
     }
   }
 
@@ -219,11 +313,49 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     });
   }
 
-  function formatCost(costPerToken: number | undefined): string {
-    if (!costPerToken) return "—";
-    const perMillion = costPerToken * 1000000;
-    if (perMillion < 0.01) return "<$0.01";
-    return "$" + perMillion.toFixed(2);
+  function isSampleSpecCatalogRow(item: { name: string }): boolean {
+    return item.name === SAMPLE_SPEC_ROW_NAME;
+  }
+
+  /** Context column: `sample_spec` shows the catalog hint string (original UI), not "—". */
+  function contextCellForRow(item: Item, max_input_tokens: unknown): string {
+    if (isSampleSpecCatalogRow(item)) {
+      if (typeof max_input_tokens === "string" && max_input_tokens.trim() !== "") {
+        return max_input_tokens;
+      }
+      return "—";
+    }
+    return formatContext(max_input_tokens as number | undefined);
+  }
+
+  /** Model info max input/output: numbers get "tokens" suffix; strings (schema hints) pass through. */
+  function formatDetailTokenField(v: unknown): string {
+    if (v == null || v === "") return "—";
+    if (typeof v === "number" && !Number.isNaN(v)) return v.toLocaleString() + " tokens";
+    if (typeof v === "string") return v;
+    return "—";
+  }
+
+  function tableInputCell(item: any): string {
+    if (isSampleSpecCatalogRow(item)) return "—";
+    return isImagePricingMode(item.mode) ? tableImageInputCost(item) : displayChatInputCost(item);
+  }
+
+  function tableOutputCell(item: any): string {
+    if (isSampleSpecCatalogRow(item)) return "—";
+    return isImagePricingMode(item.mode) ? tableImageOutputCost(item) : displayChatOutputCost(item);
+  }
+
+  function tableCacheReadCell(item: any): string {
+    if (isSampleSpecCatalogRow(item)) return "—";
+    if (isImagePricingMode(item.mode)) return "—";
+    return displayChatCacheRead(item);
+  }
+
+  function tableCacheWriteCell(item: any): string {
+    if (isSampleSpecCatalogRow(item)) return "—";
+    if (isImagePricingMode(item.mode)) return "—";
+    return displayChatCacheWrite(item);
   }
 
   function formatContext(tokens: number | undefined): string {
@@ -233,18 +365,6 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
     return tokens.toString();
   }
 
-  function getFeatureBadges(item: any): string[] {
-    const badges: string[] = [];
-    if (item.supports_function_calling) badges.push("Functions");
-    if (item.supports_vision) badges.push("Vision");
-    if (item.supports_response_schema) badges.push("JSON");
-    if (item.supports_tool_choice) badges.push("Tools");
-    if (item.supports_parallel_function_calling) badges.push("Parallel");
-    if (item.supports_audio_input) badges.push("Audio");
-    if (item.supports_prompt_caching) badges.push("Caching");
-    return badges;
-  }
-
   function getModeLabel(mode: string | undefined): string {
     if (!mode) return "";
     const labels: Record<string, string> = {
@@ -252,6 +372,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
       "completion": "Completion",
       "embedding": "Embedding",
       "image_generation": "Image Gen",
+      "image_edit": "Image edit",
       "audio_transcription": "Transcription",
       "audio_speech": "TTS",
       "moderation": "Moderation",
@@ -271,16 +392,22 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
 
       const allItems = index["_docs"] as Item[];
 
-      filteredResults = allItems.filter(
-        (item) =>
-          (!selectedProvider || item.litellm_provider === selectedProvider) &&
-          (maxInputTokens === null ||
-            (item.max_input_tokens &&
-              item.max_input_tokens >= maxInputTokens)) &&
-          (maxOutputTokens === null ||
-            (item.max_output_tokens &&
-              item.max_output_tokens >= maxOutputTokens)),
-      );
+      filteredResults = allItems.filter((item) => {
+        const schema = item.name === SAMPLE_SPEC_ROW_NAME;
+        const providerOk =
+          !selectedProvider || item.litellm_provider === selectedProvider;
+        const inputOk =
+          maxInputTokens === null ||
+          schema ||
+          (typeof item.max_input_tokens === "number" &&
+            item.max_input_tokens >= maxInputTokens);
+        const outputOk =
+          maxOutputTokens === null ||
+          schema ||
+          (typeof item.max_output_tokens === "number" &&
+            item.max_output_tokens >= maxOutputTokens);
+        return providerOk && inputOk && outputOk;
+      });
 
       if (query) {
         const filteredIndex = new Fuse(filteredResults, {
@@ -478,26 +605,36 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
               <span class="sort-icon" class:active={sortColumn === "context"} class:desc={sortColumn === "context" && sortDirection === "desc"}>↑</span>
             </th>
             <th class="th-sortable" on:click={() => handleSort("input")}>
-              Input $/M
+              Input cost
               <span class="sort-icon" class:active={sortColumn === "input"} class:desc={sortColumn === "input" && sortDirection === "desc"}>↑</span>
             </th>
             <th class="th-sortable" on:click={() => handleSort("output")}>
-              Output $/M
+              Output cost
               <span class="sort-icon" class:active={sortColumn === "output"} class:desc={sortColumn === "output" && sortDirection === "desc"}>↑</span>
             </th>
-            <th class="th-sortable th-hide-mobile" on:click={() => handleSort("cache_read")}>
-              Cache Read
+            <th class="th-sortable th-hide-mobile" on:click={() => handleSort("cache_read")} title="Prompt cache read (chat models)">
+              Cache read
               <span class="sort-icon" class:active={sortColumn === "cache_read"} class:desc={sortColumn === "cache_read" && sortDirection === "desc"}>↑</span>
             </th>
-            <th class="th-sortable th-hide-mobile" on:click={() => handleSort("cache_write")}>
-              Cache Write
+            <th class="th-sortable th-hide-mobile" on:click={() => handleSort("cache_write")} title="Prompt cache write (chat models)">
+              Cache write
               <span class="sort-icon" class:active={sortColumn === "cache_write"} class:desc={sortColumn === "cache_write" && sortDirection === "desc"}>↑</span>
             </th>
           </tr>
         </thead>
         <tbody>
-          {#each results as { item: { name, mode, litellm_provider, max_input_tokens, max_output_tokens, input_cost_per_token, output_cost_per_token, cache_creation_input_token_cost, cache_read_input_token_cost, supports_function_calling, supports_vision, supports_response_schema, supports_tool_choice, supports_parallel_function_calling, supports_audio_input, supports_prompt_caching, ...data } } (name)}
-            <tr class="model-row" class:expanded={expandedRows.has(name)} on:click={() => toggleRow(name)}>
+          {#each results as { item } (item.name)}
+            {@const name = item.name}
+            {@const mode = item.mode}
+            {@const litellm_provider = item.litellm_provider}
+            {@const max_input_tokens = item.max_input_tokens}
+            {@const max_output_tokens = item.max_output_tokens}
+            <tr
+              class="model-row"
+              class:model-row-schema={name === SAMPLE_SPEC_ROW_NAME}
+              class:expanded={expandedRows.has(name)}
+              on:click={() => toggleRow(name)}
+            >
               <td class="model-name">
                 <div class="model-info">
                   <svg class="expand-icon" class:expanded={expandedRows.has(name)} width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -526,7 +663,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
                   <div class="model-name-group">
                     <span class="model-title" title={getDisplayModelName(name, litellm_provider)}>{getDisplayModelName(name, litellm_provider)}</span>
                     {#if mode}
-                      <span class="mode-badge">{getModeLabel(mode)}</span>
+                      <span class="mode-badge" class:mode-badge-schema={name === SAMPLE_SPEC_ROW_NAME}>{getModeLabel(mode)}</span>
                     {/if}
                   </div>
                   <button
@@ -546,38 +683,65 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
                   </button>
                 </div>
               </td>
-              <td class="context-cell">{formatContext(max_input_tokens)}</td>
-              <td class="cost-cell">{formatCost(input_cost_per_token)}</td>
-              <td class="cost-cell">{formatCost(output_cost_per_token)}</td>
-              <td class="cost-cell td-hide-mobile">{formatCost(cache_read_input_token_cost)}</td>
-              <td class="cost-cell td-hide-mobile">{formatCost(cache_creation_input_token_cost)}</td>
+              <td
+                class="context-cell"
+                class:context-cell-schema={name === SAMPLE_SPEC_ROW_NAME}
+                title={name === SAMPLE_SPEC_ROW_NAME && typeof max_input_tokens === "string" ? max_input_tokens : undefined}
+              >{contextCellForRow(item, max_input_tokens)}</td>
+              <td class="cost-cell">{tableInputCell(item)}</td>
+              <td class="cost-cell">{tableOutputCell(item)}</td>
+              <td class="cost-cell td-hide-mobile">{tableCacheReadCell(item)}</td>
+              <td class="cost-cell td-hide-mobile">{tableCacheWriteCell(item)}</td>
             </tr>
             {#if expandedRows.has(name)}
               <tr class="expanded-content" transition:fly={{ y: -10, duration: 200 }}>
                 <td colspan="6">
                   <div class="detail-panel">
                     <div class="detail-grid">
-                      <!-- Pricing Cards -->
                       <div class="detail-section">
-                        <h4 class="detail-heading">Pricing <span class="detail-unit">per 1M tokens</span></h4>
+                        <h4 class="detail-heading">
+                          {#if isSampleSpecCatalogRow(item)}
+                            Field reference <span class="detail-unit">example values and types from the catalog JSON</span>
+                          {:else if isImagePricingMode(mode)}
+                            Image pricing <span class="detail-unit">per image where applicable</span>
+                          {:else if mode === "audio_speech"}
+                            Audio pricing <span class="detail-unit">per character where applicable</span>
+                          {:else if mode === "audio_transcription"}
+                            Audio pricing <span class="detail-unit">per second where applicable</span>
+                          {:else if isAudioPricingMode(mode)}
+                            Audio pricing <span class="detail-unit">per second · per character where applicable</span>
+                          {:else}
+                            Token pricing <span class="detail-unit">per 1M tokens where applicable</span>
+                          {/if}
+                        </h4>
                         <div class="pricing-cards">
                           <div class="pricing-card">
                             <span class="pricing-label">Input</span>
-                            <span class="pricing-value">{formatCost(input_cost_per_token)}</span>
+                            <span class="pricing-value">{tableInputCell(item)}</span>
                           </div>
                           <div class="pricing-card">
                             <span class="pricing-label">Output</span>
-                            <span class="pricing-value">{formatCost(output_cost_per_token)}</span>
+                            <span class="pricing-value">{tableOutputCell(item)}</span>
                           </div>
                           <div class="pricing-card">
-                            <span class="pricing-label">Cache Read</span>
-                            <span class="pricing-value">{formatCost(cache_read_input_token_cost)}</span>
+                            <span class="pricing-label">Cache read</span>
+                            <span class="pricing-value">{tableCacheReadCell(item)}</span>
                           </div>
                           <div class="pricing-card">
-                            <span class="pricing-label">Cache Write</span>
-                            <span class="pricing-value">{formatCost(cache_creation_input_token_cost)}</span>
+                            <span class="pricing-label">Cache write</span>
+                            <span class="pricing-value">{tableCacheWriteCell(item)}</span>
                           </div>
                         </div>
+                        {#if isImagePricingMode(mode)}
+                          {@const imageExtras = getImagePricingExtraRows(item)}
+                          {#if imageExtras.length > 0}
+                            <ul class="pricing-extras">
+                              {#each imageExtras as row}
+                                <li><span class="pricing-extras-label">{row.label}</span> {row.value}</li>
+                              {/each}
+                            </ul>
+                          {/if}
+                        {/if}
                       </div>
 
                       <!-- Model Info -->
@@ -594,27 +758,28 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
                           </div>
                           <div class="info-row">
                             <span class="info-label">Max Input</span>
-                            <span class="info-value">{max_input_tokens ? max_input_tokens.toLocaleString() + " tokens" : "—"}</span>
+                            <span class="info-value">{formatDetailTokenField(max_input_tokens)}</span>
                           </div>
                           <div class="info-row">
                             <span class="info-label">Max Output</span>
-                            <span class="info-value">{max_output_tokens ? max_output_tokens.toLocaleString() + " tokens" : "—"}</span>
+                            <span class="info-value">{formatDetailTokenField(max_output_tokens)}</span>
                           </div>
                         </div>
                       </div>
 
-                      <!-- Features -->
+                      <!-- Features (chat / completion models) -->
+                      {#if !isImagePricingMode(mode) && !isAudioPricingMode(mode)}
                       <div class="detail-section">
                         <h4 class="detail-heading">Features</h4>
                         <div class="feature-list">
                           {#each [
-                            { key: supports_function_calling, label: "Function Calling" },
-                            { key: supports_vision, label: "Vision" },
-                            { key: supports_response_schema, label: "JSON Mode" },
-                            { key: supports_tool_choice, label: "Tool Choice" },
-                            { key: supports_parallel_function_calling, label: "Parallel Calls" },
-                            { key: supports_audio_input, label: "Audio Input" },
-                            { key: supports_prompt_caching, label: "Prompt Caching" },
+                            { key: item.supports_function_calling, label: "Function Calling" },
+                            { key: item.supports_vision, label: "Vision" },
+                            { key: item.supports_response_schema, label: "JSON Mode" },
+                            { key: item.supports_tool_choice, label: "Tool Choice" },
+                            { key: item.supports_parallel_function_calling, label: "Parallel Calls" },
+                            { key: item.supports_audio_input, label: "Audio Input" },
+                            { key: item.supports_prompt_caching, label: "Prompt Caching" },
                           ] as feature}
                             <div class="feature-item" class:supported={feature.key}>
                               {#if feature.key}
@@ -627,6 +792,7 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
                           {/each}
                         </div>
                       </div>
+                      {/if}
                     </div>
 
                     <!-- Code snippet with tabs -->
@@ -645,42 +811,31 @@ We also need to update [${RESOURCE_BACKUP_NAME}](https://github.com/${REPO_FULL_
                           >AI Gateway (Proxy)</button>
                         </div>
                         {#if !codeTabStates[name] || codeTabStates[name] === "sdk"}
-                          <button class="copy-code-btn" on:click|stopPropagation={() => copyToClipboard(`from litellm import completion\n\nresponse = completion(\n    model="${getDisplayModelName(name, litellm_provider)}",\n    messages=[{"role": "user", "content": "Hello!"}]\n)`)}>
+                          <button class="copy-code-btn" on:click|stopPropagation={() => copyToClipboard(getLiteLLmSdkSnippet(mode, getDisplayModelName(name, litellm_provider)))}>
                             {copiedModel.includes("from litellm") ? "Copied!" : "Copy"}
                           </button>
                         {:else}
-                          <button class="copy-code-btn" on:click|stopPropagation={() => copyToClipboard(`curl http://0.0.0.0:4000/v1/chat/completions \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer sk-1234" \\\n  -d '{\n    "model": "${getDisplayModelName(name, litellm_provider)}",\n    "messages": [{"role": "user", "content": "Hello!"}]\n  }'`)}>
+                          <button class="copy-code-btn" on:click|stopPropagation={() => copyToClipboard(getLiteLLmProxyCurlSnippet(mode, getDisplayModelName(name, litellm_provider)))}>
                             {copiedModel.includes("curl") ? "Copied!" : "Copy"}
                           </button>
                         {/if}
                       </div>
                       {#if !codeTabStates[name] || codeTabStates[name] === "sdk"}
-                        <pre class="code-snippet"><code><span class="code-kw">from</span> litellm <span class="code-kw">import</span> completion
-
-response = completion(
-    model=<span class="code-str">"{getDisplayModelName(name, litellm_provider)}"</span>,
-    messages=[{`{`}<span class="code-str">"role"</span>: <span class="code-str">"user"</span>, <span class="code-str">"content"</span>: <span class="code-str">"Hello!"</span>{`}`}]
-)</code></pre>
+                        <pre class="code-snippet"><code>{getLiteLLmSdkSnippet(mode, getDisplayModelName(name, litellm_provider))}</code></pre>
                       {:else}
-                        <pre class="code-snippet"><code><span class="code-comment"># Start proxy: litellm --model {getDisplayModelName(name, litellm_provider)}</span>
-
-curl http://0.0.0.0:4000/v1/chat/completions \
-  -H <span class="code-str">"Content-Type: application/json"</span> \
-  -H <span class="code-str">"Authorization: Bearer sk-1234"</span> \
-  -d <span class="code-str">'{`{`}
-    "model": "{getDisplayModelName(name, litellm_provider)}",
-    "messages": [{`{`}"role": "user", "content": "Hello!"{`}`}]
-  {`}`}'</span></code></pre>
+                        <pre class="code-snippet"><code>{getLiteLLmProxyCurlSnippet(mode, getDisplayModelName(name, litellm_provider))}</code></pre>
                       {/if}
                     </div>
 
                     <!-- Actions -->
+                    {#if name !== SAMPLE_SPEC_ROW_NAME}
                     <div class="detail-actions">
                       <a href={getIssueUrlForFix(name)} target="_blank" rel="noopener noreferrer" class="detail-action-link" on:click|stopPropagation>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                         Report incorrect data
                       </a>
                     </div>
+                    {/if}
                   </div>
                 </td>
               </tr>
@@ -1072,11 +1227,14 @@ curl http://0.0.0.0:4000/v1/chat/completions \
 
   table {
     width: 100%;
-    border-collapse: collapse;
+    /* separate avoids sticky <th> overlapping first tbody rows (collapse + sticky bug) */
+    border-collapse: separate;
+    border-spacing: 0;
     background: var(--card-bg);
     border-radius: 12px;
     border: 1px solid var(--border-color);
-    overflow: hidden;
+    /* Do not use overflow:hidden here — it breaks position:sticky on <th> and clips header vs body paint. */
+    overflow: visible;
   }
 
   thead {
@@ -1097,7 +1255,8 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     user-select: none;
     position: sticky;
     top: 63px;
-    z-index: 10;
+    z-index: 25;
+    box-shadow: 0 1px 0 var(--border-color);
   }
 
   .th-model { padding-left: 1rem; }
@@ -1125,6 +1284,12 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     border-bottom: 1px solid var(--border-color);
     transition: background-color 0.1s ease;
     cursor: pointer;
+    position: relative;
+    z-index: 0;
+  }
+
+  tbody tr.model-row-schema td {
+    vertical-align: top;
   }
 
   tbody tr.model-row:hover {
@@ -1248,10 +1413,29 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     flex-shrink: 0;
   }
 
+  .mode-badge.mode-badge-schema {
+    white-space: normal;
+    max-width: min(40rem, 92vw);
+    line-height: 1.35;
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 500;
+    font-size: 0.625rem;
+  }
+
   .context-cell {
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     font-size: 0.8125rem;
+  }
+
+  .context-cell.context-cell-schema {
+    white-space: normal;
+    font-weight: 400;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    max-width: 18rem;
   }
 
   .cost-cell {
@@ -1322,6 +1506,29 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     font-variant-numeric: tabular-nums;
   }
 
+  .pricing-empty {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--muted-color);
+  }
+
+  .pricing-extras {
+    margin: 0.625rem 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.8125rem;
+    color: var(--muted-color);
+  }
+
+  .pricing-extras-label {
+    font-weight: 600;
+    color: var(--text-color);
+    opacity: 0.85;
+  }
+
   .info-rows {
     display: flex;
     flex-direction: column;
@@ -1348,6 +1555,8 @@ curl http://0.0.0.0:4000/v1/chat/completions \
     font-weight: 600;
     color: var(--text-color);
     font-family: 'JetBrains Mono', monospace;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .feature-list {
